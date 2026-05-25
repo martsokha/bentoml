@@ -1,7 +1,10 @@
 //! The async HTTP client and its builder.
 
 mod builder;
+mod endpoint;
+mod headers;
 
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,20 +14,20 @@ use reqwest_middleware::{
 };
 use reqwest_retry::RetryTransientMiddleware;
 use reqwest_retry::policies::ExponentialBackoff;
-use serde::Serialize;
-use serde::de::DeserializeOwned;
 use url::Url;
 
 pub use self::builder::{ClientBuilder, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT};
+pub use self::endpoint::Endpoint;
+pub(crate) use self::headers::Headers;
 use crate::error::{Error, Result};
 
 /// An async client for a single BentoML service.
 ///
-/// Construct one with [`Client::builder`], then invoke service endpoints with
-/// [`Client::call`]. The client is cheap to clone: internally it is an
-/// [`Arc`] around shared state, so clones share one connection pool. Requests pass
-/// through a [`reqwest-middleware`] stack that applies a per-request timeout and
-/// retries transient failures with exponential backoff.
+/// Construct one with [`Client::builder`], then invoke service endpoints through an
+/// [`Endpoint`] handle from [`Client::endpoint`]. The client is cheap to clone:
+/// internally it is an [`Arc`] around shared state, so clones share one connection
+/// pool. Requests pass through a [`reqwest-middleware`] stack that applies a
+/// per-request timeout and retries transient failures with exponential backoff.
 ///
 /// [`reqwest-middleware`]: https://docs.rs/reqwest-middleware
 #[derive(Debug, Clone)]
@@ -51,45 +54,40 @@ impl Client {
         &self.inner.base_url
     }
 
-    /// Invokes the endpoint at `route` with the given JSON `payload`, returning
-    /// the deserialized response.
+    /// Returns a handle to the service endpoint at `route`.
     ///
-    /// `route` is the endpoint name with or without a leading slash; it is joined
-    /// onto the configured base URL. BentoML endpoints are `POST` by default.
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), err))]
-    pub async fn call<T, R>(&self, route: &str, payload: &T) -> Result<R>
-    where
-        T: Serialize + ?Sized,
-        R: DeserializeOwned,
-    {
-        let req = self.post(route)?.json(payload);
-        let resp = self.send(req).await?;
-        Ok(resp.json::<R>().await?)
+    /// `route` is the endpoint name with or without a leading slash. The returned
+    /// [`Endpoint`] carries the route, so calls are made on it rather than passing
+    /// the route to each method: `client.endpoint("summarize").call(&req)`.
+    ///
+    /// Accepts a `&'static str` (borrowed without allocating) or an owned `String`.
+    pub fn endpoint(&self, route: impl Into<Cow<'static, str>>) -> Endpoint {
+        Endpoint::new(self.clone(), route.into())
     }
 
     /// Joins a route onto the base URL, tolerating an optional leading slash.
-    pub(crate) fn endpoint(&self, route: &str) -> Result<Url> {
+    pub(crate) fn route_url(&self, route: &str) -> Result<Url> {
         let route = route.trim_start_matches('/');
         Ok(self.inner.base_url.join(route)?)
     }
 
-    /// Like [`endpoint`], but appends a single query parameter.
+    /// Like [`route_url`], but appends a single query parameter.
     ///
-    /// [`endpoint`]: Self::endpoint
+    /// [`route_url`]: Self::route_url
     pub(crate) fn endpoint_query(&self, route: &str, key: &str, value: &str) -> Result<Url> {
-        let mut url = self.endpoint(route)?;
+        let mut url = self.route_url(route)?;
         url.query_pairs_mut().append_pair(key, value);
         Ok(url)
     }
 
     /// Begins a `POST` request to `route`, with the bearer token applied.
     pub(crate) fn post(&self, route: &str) -> Result<RequestBuilder> {
-        Ok(self.post_url(self.endpoint(route)?))
+        Ok(self.post_url(self.route_url(route)?))
     }
 
     /// Begins a `GET` request to `route`, with the bearer token applied.
     pub(crate) fn get(&self, route: &str) -> Result<RequestBuilder> {
-        Ok(self.get_url(self.endpoint(route)?))
+        Ok(self.get_url(self.route_url(route)?))
     }
 
     /// Begins a `POST` request to a pre-built URL, with the bearer token applied.
@@ -200,11 +198,11 @@ mod tests {
     fn endpoint_joins_route_tolerating_leading_slash() {
         let c = client("http://localhost:3000");
         assert_eq!(
-            c.endpoint("summarize").unwrap().as_str(),
+            c.route_url("summarize").unwrap().as_str(),
             "http://localhost:3000/summarize"
         );
         assert_eq!(
-            c.endpoint("/summarize").unwrap().as_str(),
+            c.route_url("/summarize").unwrap().as_str(),
             "http://localhost:3000/summarize"
         );
     }
@@ -214,7 +212,7 @@ mod tests {
         // A `/v1/` prefix must survive route joining (BentoML `path_prefix`).
         let c = client("http://localhost:3000/v1");
         assert_eq!(
-            c.endpoint("summarize").unwrap().as_str(),
+            c.route_url("summarize").unwrap().as_str(),
             "http://localhost:3000/v1/summarize"
         );
     }

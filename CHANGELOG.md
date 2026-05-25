@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** endpoint calls are now made through an `Endpoint` handle obtained
+  from `Client::endpoint(route)`, rather than passing the route to each `Client`
+  method. The generic `call` and the `Tasks`/`Files`/`Streaming` traits move to
+  `Endpoint`, dropping the route argument; `Readiness` health checks remain on
+  `Client`. For example, `client.call("summarize", &req)` becomes
+  `client.endpoint("summarize").call(&req)`, and `client.submit("generate", &req)`
+  becomes `client.endpoint("generate").submit(&req)`.
+
+### Added
+
+- `Client::endpoint(route)` returning a cheap, cloneable `Endpoint` handle.
+- Per-call headers on `Endpoint`: `with_header`, `with_headers`, and a
+  `with_request_id` helper, applied to every operation on the handle.
+- `ClientBuilder::with_user_agent` and `ClientBuilder::with_authorization`
+  convenience header helpers.
+
 ## [0.2.0] - 2026-05-25
 
 Wire-protocol corrections verified against the BentoML server source. The

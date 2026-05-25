@@ -87,6 +87,26 @@ impl ClientBuilder {
         self
     }
 
+    /// Sets the `User-Agent` header sent on every request.
+    ///
+    /// Convenience for [`with_header`] with the `User-Agent` name.
+    ///
+    /// [`with_header`]: Self::with_header
+    pub fn with_user_agent(self, value: impl Into<String>) -> Self {
+        self.with_header("user-agent", value)
+    }
+
+    /// Sets the raw `Authorization` header sent on every request.
+    ///
+    /// Use this for schemes other than bearer, or to supply a pre-formatted value
+    /// (e.g. `"Basic ..."`). For a bearer token, prefer [`with_token`], which formats
+    /// the `Bearer <token>` value for you.
+    ///
+    /// [`with_token`]: Self::with_token
+    pub fn with_authorization(self, value: impl Into<String>) -> Self {
+        self.with_header("authorization", value)
+    }
+
     /// Builds the [`Client`], consuming the builder.
     ///
     /// Returns an error if the configured base URL cannot be parsed, a custom header

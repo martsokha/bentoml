@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
         prompt: "a bento box, watercolor".to_owned(),
     };
 
-    let task = client.submit("generate", &request).await?;
+    let task = client.endpoint("generate").submit(&request).await?;
     println!("submitted task {}", task.task_id());
 
     loop {

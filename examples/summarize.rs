@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
         text: "BentoML is a framework for serving machine learning models.".to_owned(),
     };
 
-    let response: SummarizeResponse = client.call("summarize", &request).await?;
+    let response: SummarizeResponse = client.endpoint("summarize").call(&request).await?;
     println!("summary: {}", response.summary);
 
     Ok(())
