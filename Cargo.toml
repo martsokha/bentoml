@@ -1,0 +1,61 @@
+[package]
+name = "bentoml"
+version = "0.1.0"
+authors = ["Oleh Martsokha <o.martsokha@gmail.com>"]
+
+edition = "2024"
+rust-version = "1.91"
+
+description = "An unofficial async Rust client for BentoML services."
+license = "MIT"
+readme = "README.md"
+keywords = ["bentoml", "client", "inference", "ml", "serving"]
+categories = ["api-bindings", "web-programming::http-client"]
+
+repository = "https://github.com/martsokha/bentoml"
+documentation = "https://docs.rs/bentoml"
+
+[features]
+default = ["rustls-tls"]
+
+# HTTPS via Rustls (default).
+rustls-tls = ["reqwest/rustls"]
+# HTTPS via the platform-native TLS stack.
+native-tls = ["reqwest/native-tls"]
+
+# Streaming response endpoints (the `Streaming` trait).
+stream = ["dep:futures-core"]
+# Structured logging and spans over HTTP operations.
+tracing = ["dep:tracing"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# HTTP transport and middleware.
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "multipart"] }
+reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
+reqwest-retry = { version = "0.9" }
+
+# Serialization.
+serde = { version = "1.0", features = ["derive"] }
+
+# Bytes for multipart/raw I/O; futures-core gated behind `stream`.
+bytes = { version = "1.10" }
+futures-core = { version = "0.3", optional = true }
+
+# Errors and utilities.
+thiserror = { version = "2.0" }
+url = { version = "2.5" }
+
+# Optional.
+tracing = { version = "0.1", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1.52", features = ["macros", "rt-multi-thread"] }
+tokio-stream = { version = "0.1" }
+
+[[example]]
+name = "stream"
+required-features = ["stream"]
