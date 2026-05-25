@@ -1,6 +1,6 @@
 [package]
 name = "bentoml"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Oleh Martsokha <o.martsokha@gmail.com>"]
 
 edition = "2024"
@@ -40,6 +40,8 @@ reqwest-retry = { version = "0.9" }
 
 # Serialization.
 serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+jiff = { version = "0.2", features = ["serde"] }
 
 # Bytes for multipart/raw I/O; futures-core gated behind `stream`.
 bytes = { version = "1.10" }

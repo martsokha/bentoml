@@ -2,8 +2,10 @@
 
 use std::time::Duration;
 
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+
 use crate::client::Client;
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 /// The default base URL used when none is configured.
 pub const DEFAULT_BASE_URL: &str = "http://localhost:3000";
@@ -39,6 +41,7 @@ pub struct ClientBuilder {
     token: Option<String>,
     timeout: Option<Duration>,
     max_retries: Option<u32>,
+    headers: Vec<(String, String)>,
 }
 
 impl ClientBuilder {
@@ -72,15 +75,38 @@ impl ClientBuilder {
         self
     }
 
+    /// Adds a custom header sent on every request.
+    ///
+    /// May be called multiple times; the name and value are validated when [`build`]
+    /// is called. Note that `Authorization` is managed by [`with_token`].
+    ///
+    /// [`build`]: Self::build
+    /// [`with_token`]: Self::with_token
+    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.headers.push((name.into(), value.into()));
+        self
+    }
+
     /// Builds the [`Client`], consuming the builder.
     ///
-    /// Returns an error if the configured base URL cannot be parsed or the HTTP
-    /// client cannot be constructed.
+    /// Returns an error if the configured base URL cannot be parsed, a custom header
+    /// is invalid, or the HTTP client cannot be constructed.
     pub fn build(self) -> Result<Client> {
         let base_url = self.base_url.unwrap_or_else(|| DEFAULT_BASE_URL.to_owned());
         let timeout = self.timeout.unwrap_or(DEFAULT_TIMEOUT);
         let max_retries = self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES);
 
-        Client::assemble(base_url, self.token, timeout, max_retries)
+        let mut headers = HeaderMap::with_capacity(self.headers.len());
+        for (name, value) in self.headers {
+            let name = name
+                .parse::<HeaderName>()
+                .map_err(|e| Error::InvalidHeader(format!("{name:?}: {e}")))?;
+            let value = value
+                .parse::<HeaderValue>()
+                .map_err(|e| Error::InvalidHeader(format!("{name}: {e}")))?;
+            headers.insert(name, value);
+        }
+
+        Client::assemble(base_url, self.token, timeout, max_retries, headers)
     }
 }
