@@ -121,8 +121,8 @@ impl Client {
         let resp = req.send().await?;
         let status = resp.status();
         if !status.is_success() {
-            let message = resp.text().await.unwrap_or_default();
-            return Err(Error::service(status.as_u16(), message));
+            let body = resp.text().await.unwrap_or_default();
+            return Err(Error::service(status.as_u16(), &body));
         }
         Ok(resp)
     }
@@ -143,8 +143,12 @@ impl Client {
         token: Option<String>,
         timeout: Duration,
         max_retries: u32,
+        headers: reqwest::header::HeaderMap,
     ) -> Result<Self> {
-        let inner = reqwest::Client::builder().timeout(timeout).build()?;
+        let inner = reqwest::Client::builder()
+            .timeout(timeout)
+            .default_headers(headers)
+            .build()?;
 
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(max_retries);
 

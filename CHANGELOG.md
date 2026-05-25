@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-25
+
+Wire-protocol corrections verified against the BentoML server source. The
+`TaskStatus` change is breaking.
+
+### Fixed
+
+- `TaskStatus` variants now match BentoML's `ResultStatus` wire values:
+  `in_progress`, `completed`, `failed`, and `canceled` (were `running`,
+  `success`, `failure`, `cancelled`), so task status responses deserialize
+  correctly.
+
+### Changed
+
+- **Breaking:** renamed `TaskStatus` variants to `Pending`, `InProgress`,
+  `Completed`, `Failed`, `Canceled`.
+- `TaskInfo` now exposes the `created_at`, `executed_at`, and `completed_at`
+  timestamps. The first two are naive `jiff::civil::DateTime`; `completed_at`
+  is a timezone-aware `jiff::Timestamp`, matching how BentoML reports each.
+- Non-success responses now parse BentoML's `{"error", "detail"}` JSON envelope:
+  `Error::Service` carries the `error` message and optional structured `detail`.
+- `TaskHandle::get` now checks the task status first and returns
+  `Error::TaskNotComplete` unless the task has `Completed`.
+
+### Added
+
+- `ClientBuilder::with_header` for custom headers sent on every request.
+- `ByteStream::text` and `ByteStream::lines` adapters for streaming endpoints
+  (UTF-8 chunks and newline-delimited records, e.g. JSONL).
+- `#[tracing::instrument]` on the `TaskHandle` methods (behind `tracing`).
+
 ## [0.1.0] - 2026-05-25
 
 Initial release.
@@ -25,5 +56,6 @@ Initial release.
 - `Streaming` trait (feature `stream`): `stream` returns a `ByteStream`.
 - `rustls-tls` (default), `native-tls`, `stream`, and `tracing` feature flags.
 
-[unreleased]: https://github.com/martsokha/bentoml/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/martsokha/bentoml/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/martsokha/bentoml/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/martsokha/bentoml/releases/tag/v0.1.0

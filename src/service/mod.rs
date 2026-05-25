@@ -22,4 +22,4 @@ mod stream;
 
 #[cfg(feature = "stream")]
 #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-pub use self::stream::{ByteStream, Streaming};
+pub use self::stream::{ByteStream, LineStream, Streaming, TextStream};

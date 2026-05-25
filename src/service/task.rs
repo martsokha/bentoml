@@ -11,7 +11,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::client::Client;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::model::{TaskInfo, TaskStatus};
 
 /// A handle to a submitted task, pairing its id with the client that created it.
@@ -29,6 +29,10 @@ impl TaskHandle {
     }
 
     /// Fetches the current status of the task.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id), err)
+    )]
     pub async fn status(&self) -> Result<TaskStatus> {
         Ok(self
             .client
@@ -38,16 +42,42 @@ impl TaskHandle {
     }
 
     /// Fetches the completed result of the task, deserialized as `R`.
+    ///
+    /// Checks the task status first and returns [`Error::TaskNotComplete`] unless the
+    /// task has [`Completed`], so a pending, failed, or canceled task yields a clear
+    /// error rather than a deserialization failure.
+    ///
+    /// [`Error::TaskNotComplete`]: crate::Error::TaskNotComplete
+    /// [`Completed`]: TaskStatus::Completed
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id), err)
+    )]
     pub async fn get<R: DeserializeOwned>(&self) -> Result<R> {
+        let status = self.status().await?;
+        if status != TaskStatus::Completed {
+            return Err(Error::TaskNotComplete {
+                task_id: self.task_id.clone(),
+                status,
+            });
+        }
         self.client.get_result(&self.route, &self.task_id).await
     }
 
     /// Re-runs the task, returning a handle to the new run.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id), err)
+    )]
     pub async fn retry(&self) -> Result<TaskHandle> {
         self.client.retry(&self.route, &self.task_id).await
     }
 
     /// Cancels the task before it starts executing.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id), err)
+    )]
     pub async fn cancel(&self) -> Result<()> {
         self.client.cancel(&self.route, &self.task_id).await
     }

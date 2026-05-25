@@ -1,8 +1,13 @@
 //! Streaming response endpoints.
 //!
 //! BentoML streaming endpoints return the response body as a sequence of chunks.
-//! This trait exposes them as a [`Stream`] of [`Bytes`]; callers decode chunks
-//! (e.g. UTF-8 text) as appropriate for the endpoint.
+//! The transport does not impose SSE or other framing: a `Generator[str]` endpoint
+//! streams raw text, a model endpoint streams its serialized chunks, and chunk
+//! boundaries follow the network, not logical records. This trait exposes the raw
+//! [`ByteStream`]; [`ByteStream::text`] and [`ByteStream::lines`] adapt it for the
+//! common text and newline-delimited (e.g. JSONL) cases.
+
+mod decode;
 
 use std::fmt;
 use std::future::Future;
@@ -13,6 +18,7 @@ use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
 
+pub use self::decode::{LineStream, TextStream};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -48,6 +54,28 @@ impl Streaming for Client {
 /// A [`Stream`] of response body chunks, with errors mapped to [`crate::Error`].
 pub struct ByteStream {
     inner: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>,
+}
+
+impl ByteStream {
+    /// Decodes each chunk as UTF-8 text.
+    ///
+    /// Chunks follow network boundaries, so a multi-byte character could in theory
+    /// be split across two chunks; use [`lines`] when the endpoint emits
+    /// newline-delimited records and you need whole logical units.
+    ///
+    /// [`lines`]: Self::lines
+    pub fn text(self) -> TextStream {
+        TextStream::new(self)
+    }
+
+    /// Yields one logical line per `\n`, buffering across chunk boundaries.
+    ///
+    /// The trailing newline is stripped (and a preceding `\r`, so CRLF works). A
+    /// final unterminated line is emitted when the stream ends. Suited to JSONL and
+    /// other newline-delimited streaming endpoints.
+    pub fn lines(self) -> LineStream {
+        LineStream::new(self)
+    }
 }
 
 impl Stream for ByteStream {
