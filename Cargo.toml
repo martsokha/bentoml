@@ -1,6 +1,6 @@
 [package]
 name = "bentoml"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Oleh Martsokha <o.martsokha@gmail.com>"]
 
 edition = "2024"
