@@ -44,7 +44,19 @@ async fn main() -> Result<()> {
 }
 ```
 
-See [`examples/`](examples/) for a runnable example.
+See [`examples/`](examples/) for runnable examples.
+
+## Capabilities
+
+Beyond the generic `call`, the client implements a set of extension traits (all in
+the [prelude]) covering the BentoML HTTP surface:
+
+- [`Readiness`] — `is_ready` / `is_live` health checks and `wait_until_ready`.
+- [`Tasks`] — async task queues (`@bentoml.task`): `submit` returns a `TaskHandle`
+  for `status` / `get` / `retry` / `cancel`.
+- [`Files`] — `multipart/form-data` file inputs, raw-binary root inputs, and binary
+  responses.
+- [`Streaming`] (feature `stream`) — `stream` returns a `Stream` of response chunks.
 
 ## Features
 
@@ -52,7 +64,14 @@ See [`examples/`](examples/) for a runnable example.
 | ------------ | :-----: | -------------------------------------------- |
 | `rustls-tls` |    ✓    | HTTPS via Rustls.                            |
 | `native-tls` |         | HTTPS via the platform-native TLS stack.     |
+| `stream`     |         | Streaming response endpoints (`Streaming`).  |
 | `tracing`    |         | Structured logging over HTTP operations.     |
+
+[prelude]: https://docs.rs/bentoml/latest/bentoml/prelude/index.html
+[`Readiness`]: https://docs.rs/bentoml/latest/bentoml/service/trait.Readiness.html
+[`Tasks`]: https://docs.rs/bentoml/latest/bentoml/service/trait.Tasks.html
+[`Files`]: https://docs.rs/bentoml/latest/bentoml/service/trait.Files.html
+[`Streaming`]: https://docs.rs/bentoml/latest/bentoml/service/trait.Streaming.html
 
 ## License
 

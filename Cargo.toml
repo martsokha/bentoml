@@ -17,10 +17,14 @@ documentation = "https://docs.rs/bentoml"
 
 [features]
 default = ["rustls-tls"]
+
 # HTTPS via Rustls (default).
 rustls-tls = ["reqwest/rustls"]
 # HTTPS via the platform-native TLS stack.
 native-tls = ["reqwest/native-tls"]
+
+# Streaming response endpoints (the `Streaming` trait).
+stream = ["dep:futures-core"]
 # Structured logging and spans over HTTP operations.
 tracing = ["dep:tracing"]
 
@@ -30,13 +34,17 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # HTTP transport and middleware.
-reqwest = { version = "0.13.3", default-features = false, features = ["json", "stream"] }
-reqwest-middleware = { version = "0.5.2", features = ["json"] }
+reqwest = { version = "0.13.3", default-features = false, features = ["json", "stream", "multipart"] }
+reqwest-middleware = { version = "0.5.2", features = ["json", "multipart"] }
 reqwest-retry = { version = "0.9.1" }
 
 # Serialization.
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150" }
+
+# Bytes for multipart/raw I/O; futures-core gated behind `stream`.
+bytes = { version = "1.10" }
+futures-core = { version = "0.3.31", optional = true }
 
 # Errors, builders, and utilities.
 thiserror = { version = "2.0.18" }
@@ -48,3 +56,8 @@ tracing = { version = "0.1.44", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread"] }
+tokio-stream = { version = "0.1.17" }
+
+[[example]]
+name = "stream"
+required-features = ["stream"]

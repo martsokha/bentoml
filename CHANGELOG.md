@@ -10,7 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial scaffolding for the async BentoML client.
-- `Client` with a `ClientBuilder` (base URL, bearer token, timeout).
-- Generic `Client::call` for invoking arbitrary service endpoints.
-- `Client::is_ready` health check against `/readyz`.
-- `rustls-tls` (default), `native-tls`, and `tracing` feature flags.
+- `Client` with a `ClientBuilder` (base URL, bearer token, timeout, retries).
+- Generic `Client::call` for invoking arbitrary JSON service endpoints.
+- Retries for transient failures via `reqwest-middleware` (exponential backoff).
+- `Readiness` trait: `is_ready` (`/readyz`), `is_live` (`/livez`), and a
+  runtime-agnostic `wait_until_ready`.
+- `Tasks` trait for async task queues (`@bentoml.task`): `submit` returns a
+  `TaskHandle` with `status` / `get` / `retry` / `cancel`; `TaskStatus`, `TaskInfo`.
+- `Files` trait: `call_multipart` (file inputs), `call_raw` (raw-binary root input),
+  and `call_bytes` (binary responses).
+- `Streaming` trait (feature `stream`): `stream` returns a `ByteStream`.
+- `rustls-tls` (default), `native-tls`, `stream`, and `tracing` feature flags.

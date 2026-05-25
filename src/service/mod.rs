@@ -1,6 +1,22 @@
-//! Service-level abstractions over the raw [`Client`](crate::client::Client).
+//! Capability traits implemented for [`Client`](crate::Client).
 //!
-//! The client exposes a generic [`call`](crate::client::Client::call) for invoking
-//! arbitrary endpoints. This module is the home for higher-level, ergonomic wrappers
-//! built on top of it — for example, a typed facade over a specific service, or
-//! helpers for streaming endpoints. It is intentionally minimal for now.
+//! The core [`Client`](crate::Client) carries the generic
+//! [`call`](crate::Client::call) for JSON endpoints. The traits here extend it with
+//! the rest of the BentoML HTTP surface — health checks, async task queues, file and
+//! raw-binary I/O, and (behind the `stream` feature) streaming responses. Bring them
+//! into scope via the [prelude](crate::prelude).
+
+mod files;
+mod readiness;
+mod task;
+
+pub use self::files::Files;
+pub use self::readiness::Readiness;
+pub use self::task::{TaskHandle, Tasks};
+
+#[cfg(feature = "stream")]
+mod stream;
+
+#[cfg(feature = "stream")]
+#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+pub use self::stream::{ByteStream, Streaming};

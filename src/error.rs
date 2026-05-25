@@ -25,6 +25,13 @@ pub enum Error {
     #[error("http middleware error: {0}")]
     Middleware(#[from] reqwest_middleware::Error),
 
+    /// The service did not become ready within the configured timeout.
+    #[error("timed out after {timeout:?} waiting for the service")]
+    Timeout {
+        /// The timeout that elapsed.
+        timeout: std::time::Duration,
+    },
+
     /// The service responded with a non-success status code.
     #[error("service returned status {status}: {message}")]
     Service {

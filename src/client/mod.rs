@@ -4,7 +4,10 @@ mod config;
 
 use std::sync::Arc;
 
-use reqwest_middleware::{ClientBuilder as MiddlewareBuilder, ClientWithMiddleware};
+use reqwest::Response;
+use reqwest_middleware::{
+    ClientBuilder as MiddlewareBuilder, ClientWithMiddleware, RequestBuilder,
+};
 use reqwest_retry::RetryTransientMiddleware;
 use reqwest_retry::policies::ExponentialBackoff;
 use serde::Serialize;
@@ -60,34 +63,74 @@ impl Client {
         T: Serialize + ?Sized,
         R: DeserializeOwned,
     {
-        let url = self.endpoint(route)?;
-        let mut req = self.inner.http.post(url).json(payload);
-        if let Some(token) = &self.inner.token {
-            req = req.bearer_auth(token);
-        }
+        let req = self.post(route)?.json(payload);
+        let resp = self.send(req).await?;
+        Ok(resp.json::<R>().await?)
+    }
 
+    // --- Shared request plumbing, also used by the service submodules. ---
+
+    /// Joins a route onto the base URL, tolerating an optional leading slash.
+    pub(crate) fn endpoint(&self, route: &str) -> Result<Url> {
+        let route = route.trim_start_matches('/');
+        Ok(self.inner.base_url.join(route)?)
+    }
+
+    /// Like [`endpoint`](Self::endpoint), but appends a single query parameter.
+    pub(crate) fn endpoint_query(&self, route: &str, key: &str, value: &str) -> Result<Url> {
+        let mut url = self.endpoint(route)?;
+        url.query_pairs_mut().append_pair(key, value);
+        Ok(url)
+    }
+
+    /// Begins a `POST` request to `route`, with the bearer token applied.
+    pub(crate) fn post(&self, route: &str) -> Result<RequestBuilder> {
+        Ok(self.post_url(self.endpoint(route)?))
+    }
+
+    /// Begins a `GET` request to `route`, with the bearer token applied.
+    pub(crate) fn get(&self, route: &str) -> Result<RequestBuilder> {
+        Ok(self.get_url(self.endpoint(route)?))
+    }
+
+    /// Begins a `POST` request to a pre-built URL, with the bearer token applied.
+    pub(crate) fn post_url(&self, url: Url) -> RequestBuilder {
+        self.authed(self.inner.http.post(url))
+    }
+
+    /// Begins a `GET` request to a pre-built URL, with the bearer token applied.
+    pub(crate) fn get_url(&self, url: Url) -> RequestBuilder {
+        self.authed(self.inner.http.get(url))
+    }
+
+    /// Begins a `PUT` request to a pre-built URL, with the bearer token applied.
+    pub(crate) fn put_url(&self, url: Url) -> RequestBuilder {
+        self.authed(self.inner.http.put(url))
+    }
+
+    /// Applies the configured bearer token to a request builder, if any.
+    pub(crate) fn authed(&self, req: RequestBuilder) -> RequestBuilder {
+        match &self.inner.token {
+            Some(token) => req.bearer_auth(token),
+            None => req,
+        }
+    }
+
+    /// Sends a request, mapping any non-success status to [`Error::Service`].
+    pub(crate) async fn send(&self, req: RequestBuilder) -> Result<Response> {
         let resp = req.send().await?;
         let status = resp.status();
         if !status.is_success() {
             let message = resp.text().await.unwrap_or_default();
             return Err(Error::service(status.as_u16(), message));
         }
-
-        Ok(resp.json::<R>().await?)
+        Ok(resp)
     }
 
-    /// Returns whether the service reports itself ready, via the `/readyz`
-    /// health-check endpoint.
-    pub async fn is_ready(&self) -> Result<bool> {
-        let url = self.endpoint("readyz")?;
-        let resp = self.inner.http.get(url).send().await?;
+    /// Issues a `GET` against a health endpoint, returning whether it is healthy.
+    pub(crate) async fn health(&self, route: &str) -> Result<bool> {
+        let resp = self.get(route)?.send().await?;
         Ok(resp.status().is_success())
-    }
-
-    /// Joins a route onto the base URL, tolerating an optional leading slash.
-    fn endpoint(&self, route: &str) -> Result<Url> {
-        let route = route.trim_start_matches('/');
-        Ok(self.inner.base_url.join(route)?)
     }
 
     /// Builds a [`Client`] from a resolved [`ClientConfig`].

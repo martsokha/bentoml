@@ -5,5 +5,7 @@
 //! health-check and metadata responses.
 
 mod health;
+mod task;
 
 pub use self::health::HealthStatus;
+pub use self::task::{TaskInfo, TaskStatus};
