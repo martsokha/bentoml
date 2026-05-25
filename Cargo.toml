@@ -40,7 +40,6 @@ reqwest-retry = { version = "0.9" }
 
 # Serialization.
 serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0" }
 
 # Bytes for multipart/raw I/O; futures-core gated behind `stream`.
 bytes = { version = "1.10" }

@@ -16,7 +16,7 @@ all-features = true
 [advisories]
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-unmaintained = "workspace"
+unmaintained = "all"
 yanked = "deny"
 ignore = []
 

@@ -13,10 +13,6 @@ pub enum Error {
     #[error("invalid base url: {0}")]
     InvalidBaseUrl(#[from] url::ParseError),
 
-    /// The client was misconfigured and could not be built.
-    #[error("client configuration error: {0}")]
-    Builder(String),
-
     /// An error occurred while performing the HTTP request.
     #[error("http transport error: {0}")]
     Transport(#[from] reqwest::Error),
@@ -40,10 +36,6 @@ pub enum Error {
         /// The response body, if any, as returned by the service.
         message: String,
     },
-
-    /// A request or response body could not be (de)serialized.
-    #[error("serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
 }
 
 impl Error {

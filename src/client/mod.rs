@@ -170,3 +170,48 @@ impl Client {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn client(base_url: &str) -> Client {
+        Client::builder().with_base_url(base_url).build().unwrap()
+    }
+
+    #[test]
+    fn base_url_gets_a_trailing_slash() {
+        // Without normalization, `Url::join` would drop the final path segment.
+        assert_eq!(
+            client("http://localhost:3000").base_url().as_str(),
+            "http://localhost:3000/"
+        );
+        assert_eq!(
+            client("http://localhost:3000/").base_url().as_str(),
+            "http://localhost:3000/"
+        );
+    }
+
+    #[test]
+    fn endpoint_joins_route_tolerating_leading_slash() {
+        let c = client("http://localhost:3000");
+        assert_eq!(
+            c.endpoint("summarize").unwrap().as_str(),
+            "http://localhost:3000/summarize"
+        );
+        assert_eq!(
+            c.endpoint("/summarize").unwrap().as_str(),
+            "http://localhost:3000/summarize"
+        );
+    }
+
+    #[test]
+    fn endpoint_preserves_a_path_prefix() {
+        // A `/v1/` prefix must survive route joining (BentoML `path_prefix`).
+        let c = client("http://localhost:3000/v1");
+        assert_eq!(
+            c.endpoint("summarize").unwrap().as_str(),
+            "http://localhost:3000/v1/summarize"
+        );
+    }
+}

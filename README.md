@@ -19,6 +19,8 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1", features = ["derive"] }
 ```
 
+The minimum supported Rust version (MSRV) is **1.91**.
+
 ```rust,no_run
 use bentoml::prelude::*;
 use serde::{Deserialize, Serialize};
