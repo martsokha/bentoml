@@ -52,7 +52,8 @@ async fn main() -> Result<()> {
         .build()?;
 
     let resp: SummarizeResponse = client
-        .call("summarize", &SummarizeRequest { text: "...".into() })
+        .endpoint("summarize")
+        .call(&SummarizeRequest { text: "...".into() })
         .await?;
 
     println!("{}", resp.summary);
@@ -60,19 +61,22 @@ async fn main() -> Result<()> {
 }
 ```
 
-See [`examples/`](examples/) for runnable examples.
+A `Client::endpoint(route)` handle names the route once; calls are made on it. See
+[`examples/`](examples/) for runnable examples.
 
 ## Capabilities
 
-Beyond the generic `call`, the client implements a set of extension traits (all in
-the prelude) covering the BentoML HTTP surface:
+A `Client::endpoint(route)` handle implements a set of extension traits (all in the
+prelude) covering the BentoML HTTP surface:
 
-- `Readiness`: `is_ready` / `is_live` health checks and `wait_until_ready`.
 - `Tasks`: async task queues (`@bentoml.task`); `submit` returns a `TaskHandle`
   for `status` / `get` / `retry` / `cancel`.
 - `Files`: `multipart/form-data` file inputs, raw-binary root inputs, and binary
   responses.
 - `Streaming`: `stream` returns a `Stream` of response chunks (feature `stream`).
+
+The `Client` itself provides `Readiness`: `is_ready` / `is_live` health checks and
+`wait_until_ready`.
 
 These are gated by feature flags:
 

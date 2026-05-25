@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
         prompt: "Tell me about BentoML.".to_owned(),
     };
 
-    let mut stream = client.stream("chat", &request).await?;
+    let mut stream = client.endpoint("chat").stream(&request).await?;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
         print!("{}", String::from_utf8_lossy(&chunk));

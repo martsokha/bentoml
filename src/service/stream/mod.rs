@@ -19,32 +19,28 @@ use futures_core::Stream;
 use serde::Serialize;
 
 pub use self::decode::{LineStream, TextStream};
-use crate::client::Client;
+use crate::client::Endpoint;
 use crate::error::Result;
 
 /// Streaming-response operations against a BentoML service.
 ///
-/// Implemented for [`Client`]. Requires the `stream` feature.
+/// Implemented for [`Endpoint`]. Requires the `stream` feature.
 pub trait Streaming {
-    /// Invokes the streaming endpoint at `route` with the given JSON `payload`,
-    /// returning a [`Stream`] over the response body chunks.
-    fn stream<T>(
-        &self,
-        route: &str,
-        payload: &T,
-    ) -> impl Future<Output = Result<ByteStream>> + Send
+    /// Invokes the streaming endpoint with the given JSON `payload`, returning a
+    /// [`Stream`] over the response body chunks.
+    fn stream<T>(&self, payload: &T) -> impl Future<Output = Result<ByteStream>> + Send
     where
         T: Serialize + ?Sized + Sync;
 }
 
-impl Streaming for Client {
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), err))]
-    async fn stream<T>(&self, route: &str, payload: &T) -> Result<ByteStream>
+impl Streaming for Endpoint {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route()), err))]
+    async fn stream<T>(&self, payload: &T) -> Result<ByteStream>
     where
         T: Serialize + ?Sized + Sync,
     {
-        let req = self.post(route)?.json(payload);
-        let resp = self.send(req).await?;
+        let req = self.request(self.route())?.json(payload);
+        let resp = self.client().send(req).await?;
         Ok(ByteStream {
             inner: Box::pin(resp.bytes_stream()),
         })
