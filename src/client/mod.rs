@@ -21,7 +21,7 @@ use crate::error::{Error, Result};
 /// An async client for a single BentoML service.
 ///
 /// Construct one with [`Client::builder`], then invoke service endpoints with
-/// [`Client::call`]. The client is cheap to clone — internally it is an
+/// [`Client::call`]. The client is cheap to clone: internally it is an
 /// [`Arc`] around shared state, so clones share one connection pool. Requests pass
 /// through a [`reqwest-middleware`] stack that applies a per-request timeout and
 /// retries transient failures with exponential backoff.

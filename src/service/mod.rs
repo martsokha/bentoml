@@ -1,7 +1,7 @@
 //! Capability traits implemented for [`Client`].
 //!
 //! The core [`Client`] carries the generic [`call`] for JSON endpoints. The traits
-//! here extend it with the rest of the BentoML HTTP surface — health checks, async
+//! here extend it with the rest of the BentoML HTTP surface: health checks, async
 //! task queues, file and raw-binary I/O, and (behind the `stream` feature) streaming
 //! responses. Bring them into scope via the [prelude].
 //!

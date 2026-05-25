@@ -3,6 +3,14 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 
+// A TLS backend is required for HTTPS; without one, requests to `https://` URLs
+// fail at runtime. Force the choice at compile time.
+#[cfg(not(any(feature = "rustls-tls", feature = "native-tls")))]
+compile_error!(
+    "a TLS backend is required: enable either the `rustls-tls` (default) or \
+     `native-tls` feature"
+);
+
 mod client;
 mod error;
 

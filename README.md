@@ -1,12 +1,26 @@
 # bentoml
 
+[![Build](https://img.shields.io/github/actions/workflow/status/martsokha/bentoml/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/martsokha/bentoml/actions/workflows/build.yml)
+[![Crate](https://img.shields.io/crates/v/bentoml.svg?style=flat-square)](https://crates.io/crates/bentoml)
+[![Docs](https://img.shields.io/docsrs/bentoml?style=flat-square)](https://docs.rs/bentoml)
+
 An unofficial async Rust client for [BentoML] services.
 
 BentoML services expose their `@bentoml.api` methods as HTTP `POST` endpoints whose
 route is derived from the method name. Because endpoints are defined dynamically
-per-service, this crate doesn't generate typed bindings — instead it offers a generic
-`call` over [`serde`] types: you describe the request and response shapes, and the
-client handles serialization, transport, and error mapping.
+per-service, this crate doesn't generate typed bindings: instead it offers a generic
+`call` over [`serde`] types, plus extension traits for the rest of the HTTP surface.
+
+## Features
+
+- **Generic calls**: invoke any endpoint with `call(route, payload)` over your own
+  `serde` request and response types, with no codegen or per-service bindings.
+- **Async task queues**: submit `@bentoml.task` jobs and poll status, fetch results,
+  retry, or cancel through a `TaskHandle`.
+- **File and streaming I/O**: `multipart/form-data` file inputs, raw-binary root
+  inputs, binary responses, and chunked streaming endpoints (feature `stream`).
+- **Resilient transport**: per-request timeouts and exponential-backoff retries via
+  `reqwest-middleware`, bearer-token auth, and a cheap-to-clone `Arc`-backed client.
 
 ## Usage
 
@@ -51,29 +65,25 @@ See [`examples/`](examples/) for runnable examples.
 ## Capabilities
 
 Beyond the generic `call`, the client implements a set of extension traits (all in
-the [prelude]) covering the BentoML HTTP surface:
+the prelude) covering the BentoML HTTP surface:
 
-- [`Readiness`] — `is_ready` / `is_live` health checks and `wait_until_ready`.
-- [`Tasks`] — async task queues (`@bentoml.task`): `submit` returns a `TaskHandle`
+- `Readiness`: `is_ready` / `is_live` health checks and `wait_until_ready`.
+- `Tasks`: async task queues (`@bentoml.task`); `submit` returns a `TaskHandle`
   for `status` / `get` / `retry` / `cancel`.
-- [`Files`] — `multipart/form-data` file inputs, raw-binary root inputs, and binary
+- `Files`: `multipart/form-data` file inputs, raw-binary root inputs, and binary
   responses.
-- [`Streaming`] (feature `stream`) — `stream` returns a `Stream` of response chunks.
+- `Streaming`: `stream` returns a `Stream` of response chunks (feature `stream`).
 
-## Features
+These are gated by feature flags:
 
-| Feature      | Default | Description                                  |
-| ------------ | :-----: | -------------------------------------------- |
-| `rustls-tls` |    ✓    | HTTPS via Rustls.                            |
-| `native-tls` |         | HTTPS via the platform-native TLS stack.     |
-| `stream`     |         | Streaming response endpoints (`Streaming`).  |
-| `tracing`    |         | Structured logging over HTTP operations.     |
+- `rustls-tls` *(default)*: HTTPS via Rustls.
+- `native-tls`: HTTPS via the platform-native TLS stack.
+- `stream`: streaming response endpoints (`Streaming`).
+- `tracing`: `#[tracing::instrument]` on request methods.
 
-[prelude]: https://docs.rs/bentoml/latest/bentoml/prelude/index.html
-[`Readiness`]: https://docs.rs/bentoml/latest/bentoml/service/trait.Readiness.html
-[`Tasks`]: https://docs.rs/bentoml/latest/bentoml/service/trait.Tasks.html
-[`Files`]: https://docs.rs/bentoml/latest/bentoml/service/trait.Files.html
-[`Streaming`]: https://docs.rs/bentoml/latest/bentoml/service/trait.Streaming.html
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes and version history.
 
 ## License
 
