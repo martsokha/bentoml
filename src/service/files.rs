@@ -43,6 +43,7 @@ pub trait Files {
 }
 
 impl Files for Client {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, form), err))]
     async fn call_multipart<R>(&self, route: &str, form: Form) -> Result<R>
     where
         R: DeserializeOwned,
@@ -51,6 +52,7 @@ impl Files for Client {
         Ok(self.send(req).await?.json().await?)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), err))]
     async fn call_raw<R>(&self, route: &str, body: impl Into<Bytes> + Send) -> Result<R>
     where
         R: DeserializeOwned,
@@ -59,6 +61,7 @@ impl Files for Client {
         Ok(self.send(req).await?.json().await?)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), err))]
     async fn call_bytes<T>(&self, route: &str, payload: &T) -> Result<Bytes>
     where
         T: Serialize + ?Sized + Sync,

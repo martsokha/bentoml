@@ -1,8 +1,9 @@
 //! The async HTTP client and its builder.
 
-mod config;
+mod builder;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use reqwest::Response;
 use reqwest_middleware::{
@@ -14,10 +15,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use url::Url;
 
-pub use self::config::{
-    ClientBuilder, ClientBuilderError, ClientConfig, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES,
-    DEFAULT_TIMEOUT,
-};
+pub use self::builder::{ClientBuilder, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT};
 use crate::error::{Error, Result};
 
 /// An async client for a single BentoML service.
@@ -58,6 +56,7 @@ impl Client {
     ///
     /// `route` is the endpoint name with or without a leading slash; it is joined
     /// onto the configured base URL. BentoML endpoints are `POST` by default.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), err))]
     pub async fn call<T, R>(&self, route: &str, payload: &T) -> Result<R>
     where
         T: Serialize + ?Sized,
@@ -68,15 +67,15 @@ impl Client {
         Ok(resp.json::<R>().await?)
     }
 
-    // --- Shared request plumbing, also used by the service submodules. ---
-
     /// Joins a route onto the base URL, tolerating an optional leading slash.
     pub(crate) fn endpoint(&self, route: &str) -> Result<Url> {
         let route = route.trim_start_matches('/');
         Ok(self.inner.base_url.join(route)?)
     }
 
-    /// Like [`endpoint`](Self::endpoint), but appends a single query parameter.
+    /// Like [`endpoint`], but appends a single query parameter.
+    ///
+    /// [`endpoint`]: Self::endpoint
     pub(crate) fn endpoint_query(&self, route: &str, key: &str, value: &str) -> Result<Url> {
         let mut url = self.endpoint(route)?;
         url.query_pairs_mut().append_pair(key, value);
@@ -117,6 +116,7 @@ impl Client {
     }
 
     /// Sends a request, mapping any non-success status to [`Error::Service`].
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, err))]
     pub(crate) async fn send(&self, req: RequestBuilder) -> Result<Response> {
         let resp = req.send().await?;
         let status = resp.status();
@@ -133,21 +133,26 @@ impl Client {
         Ok(resp.status().is_success())
     }
 
-    /// Builds a [`Client`] from a resolved [`ClientConfig`].
+    /// Assembles a [`Client`] from resolved configuration, used by [`ClientBuilder`].
     ///
-    /// Assembles the HTTP middleware stack: a per-request timeout enforced by
-    /// reqwest, with retries layered on top via reqwest-middleware so each attempt
-    /// gets its own timeout.
-    pub(crate) fn from_config(config: ClientConfig) -> Result<Self> {
-        let inner = reqwest::Client::builder().timeout(config.timeout).build()?;
+    /// Builds the HTTP middleware stack: a per-request timeout enforced by reqwest,
+    /// with retries layered on top via reqwest-middleware so each attempt gets its
+    /// own timeout.
+    pub(crate) fn assemble(
+        base_url: String,
+        token: Option<String>,
+        timeout: Duration,
+        max_retries: u32,
+    ) -> Result<Self> {
+        let inner = reqwest::Client::builder().timeout(timeout).build()?;
 
-        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(config.max_retries);
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(max_retries);
 
         let http = MiddlewareBuilder::new(inner)
             .with(RetryTransientMiddleware::new_with_policy(retry_policy))
             .build();
 
-        let mut base_url = Url::parse(&config.base_url)?;
+        let mut base_url = Url::parse(&base_url)?;
 
         // A base URL must end in `/` for [`Url::join`] to treat it as a directory
         // rather than replacing the final path segment.
@@ -160,7 +165,7 @@ impl Client {
             inner: Arc::new(ClientImpl {
                 http,
                 base_url,
-                token: config.token,
+                token,
             }),
         })
     }

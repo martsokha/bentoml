@@ -11,8 +11,9 @@ pub enum TaskStatus {
     Pending,
     /// Currently executing.
     Running,
-    /// Finished successfully; the result is available via
-    /// [`Tasks::get_result`](crate::service::Tasks::get_result).
+    /// Finished successfully; the result is available via [`Tasks::get_result`].
+    ///
+    /// [`Tasks::get_result`]: crate::service::Tasks::get_result
     Success,
     /// Finished with an error.
     Failure,

@@ -32,6 +32,7 @@ pub trait Streaming {
 }
 
 impl Streaming for Client {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), err))]
     async fn stream<T>(&self, route: &str, payload: &T) -> Result<ByteStream>
     where
         T: Serialize + ?Sized + Sync,

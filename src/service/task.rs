@@ -55,8 +55,10 @@ impl TaskHandle {
 
 /// Async task-queue operations against a BentoML service.
 ///
-/// Implemented for [`Client`]. The high-level [`submit`](Tasks::submit) returns a
-/// [`TaskHandle`] that wraps the lower-level id-based methods.
+/// Implemented for [`Client`]. The high-level [`submit`] returns a [`TaskHandle`]
+/// that wraps the lower-level id-based methods.
+///
+/// [`submit`]: Tasks::submit
 pub trait Tasks {
     /// Submits a task to `route`, returning a [`TaskHandle`] for tracking it.
     fn submit<T>(
@@ -89,6 +91,7 @@ pub trait Tasks {
 }
 
 impl Tasks for Client {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), err))]
     async fn submit<T>(&self, route: &str, payload: &T) -> Result<TaskHandle>
     where
         T: Serialize + ?Sized + Sync,
@@ -103,16 +106,19 @@ impl Tasks for Client {
         })
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
     async fn get_status(&self, route: &str, task_id: &str) -> Result<TaskInfo> {
         let url = self.endpoint_query(&join(route, "status"), "task_id", task_id)?;
         Ok(self.send(self.get_url(url)).await?.json().await?)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
     async fn get_result<R: DeserializeOwned>(&self, route: &str, task_id: &str) -> Result<R> {
         let url = self.endpoint_query(&join(route, "get"), "task_id", task_id)?;
         Ok(self.send(self.get_url(url)).await?.json().await?)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
     async fn retry(&self, route: &str, task_id: &str) -> Result<TaskHandle> {
         let route = route.trim_start_matches('/').to_owned();
         let url = self.endpoint_query(&join(&route, "retry"), "task_id", task_id)?;
@@ -124,6 +130,7 @@ impl Tasks for Client {
         })
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
     async fn cancel(&self, route: &str, task_id: &str) -> Result<()> {
         let url = self.endpoint_query(&join(route, "cancel"), "task_id", task_id)?;
         self.send(self.put_url(url)).await?;

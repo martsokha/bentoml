@@ -17,14 +17,16 @@ pub trait Readiness {
     /// Returns whether the service reports itself alive, via `/livez`.
     fn is_live(&self) -> impl Future<Output = Result<bool>> + Send;
 
-    /// Polls [`is_ready`](Readiness::is_ready) until it returns `true` or `timeout`
-    /// elapses, awaiting `sleep(interval)` between attempts.
+    /// Polls [`is_ready`] until it returns `true` or `timeout` elapses, awaiting
+    /// `sleep(interval)` between attempts.
     ///
     /// The crate is runtime-agnostic, so the caller supplies the delay: `sleep` is
     /// invoked with `interval` and the returned future is awaited. With Tokio, pass
     /// `tokio::time::sleep`.
     ///
     /// Returns [`Error::Timeout`] if the service does not become ready in time.
+    ///
+    /// [`is_ready`]: Readiness::is_ready
     fn wait_until_ready<S, F>(
         &self,
         timeout: Duration,
@@ -37,14 +39,17 @@ pub trait Readiness {
 }
 
 impl Readiness for Client {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
     async fn is_ready(&self) -> Result<bool> {
         self.health("readyz").await
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
     async fn is_live(&self) -> Result<bool> {
         self.health("livez").await
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, sleep), err))]
     async fn wait_until_ready<S, F>(
         &self,
         timeout: Duration,

@@ -7,11 +7,12 @@ mod client;
 mod error;
 
 pub mod model;
-pub mod prelude;
 pub mod service;
 
+#[doc(hidden)]
+pub mod prelude;
+
 pub use crate::client::{
-    Client, ClientBuilder, ClientBuilderError, ClientConfig, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES,
-    DEFAULT_TIMEOUT,
+    Client, ClientBuilder, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT,
 };
 pub use crate::error::{Error, Result};

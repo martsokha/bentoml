@@ -34,29 +34,28 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # HTTP transport and middleware.
-reqwest = { version = "0.13.3", default-features = false, features = ["json", "stream", "multipart"] }
-reqwest-middleware = { version = "0.5.2", features = ["json", "multipart"] }
-reqwest-retry = { version = "0.9.1" }
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "multipart"] }
+reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
+reqwest-retry = { version = "0.9" }
 
 # Serialization.
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = { version = "1.0.150" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
 
 # Bytes for multipart/raw I/O; futures-core gated behind `stream`.
 bytes = { version = "1.10" }
-futures-core = { version = "0.3.31", optional = true }
+futures-core = { version = "0.3", optional = true }
 
-# Errors, builders, and utilities.
-thiserror = { version = "2.0.18" }
-derive_builder = { version = "0.20.2" }
-url = { version = "2.5.8" }
+# Errors and utilities.
+thiserror = { version = "2.0" }
+url = { version = "2.5" }
 
 # Optional.
-tracing = { version = "0.1.44", optional = true }
+tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread"] }
-tokio-stream = { version = "0.1.17" }
+tokio-stream = { version = "0.1" }
 
 [[example]]
 name = "stream"
