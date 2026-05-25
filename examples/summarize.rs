@@ -22,7 +22,7 @@ struct SummarizeResponse {
 #[tokio::main]
 async fn main() -> Result<()> {
     let client = Client::builder()
-        .base_url("http://localhost:3000")?
+        .with_base_url("http://localhost:3000")
         .build()?;
 
     if !client.is_ready().await? {

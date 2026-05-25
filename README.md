@@ -19,7 +19,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1", features = ["derive"] }
 ```
 
-```rust
+```rust,no_run
 use bentoml::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -32,7 +32,7 @@ struct SummarizeResponse { summary: String }
 #[tokio::main]
 async fn main() -> Result<()> {
     let client = Client::builder()
-        .base_url("http://localhost:3000")?
+        .with_base_url("http://localhost:3000")
         .build()?;
 
     let resp: SummarizeResponse = client

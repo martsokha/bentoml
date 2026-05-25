@@ -21,6 +21,10 @@ pub enum Error {
     #[error("http transport error: {0}")]
     Transport(#[from] reqwest::Error),
 
+    /// An error occurred in the request middleware stack (e.g. retries).
+    #[error("http middleware error: {0}")]
+    Middleware(#[from] reqwest_middleware::Error),
+
     /// The service responded with a non-success status code.
     #[error("service returned status {status}: {message}")]
     Service {
