@@ -4,12 +4,12 @@
 [![Crate](https://img.shields.io/crates/v/bentoml.svg?style=flat-square)](https://crates.io/crates/bentoml)
 [![Docs](https://img.shields.io/docsrs/bentoml?style=flat-square)](https://docs.rs/bentoml)
 
-An unofficial async Rust client for [BentoML] services.
+An unofficial async Rust client for [BentoML] services ([GitHub][bentoml-gh]).
 
 BentoML services expose their `@bentoml.api` methods as HTTP `POST` endpoints whose
 route is derived from the method name. Because endpoints are defined dynamically
 per-service, this crate doesn't generate typed bindings: instead it offers a generic
-`call` over [`serde`] types, plus extension traits for the rest of the HTTP surface.
+`call` over `serde` types, plus extension traits for the rest of the HTTP surface.
 
 ## Features
 
@@ -94,3 +94,4 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes and version history.
 Licensed under the [MIT License](LICENSE.txt).
 
 [BentoML]: https://www.bentoml.com
+[bentoml-gh]: https://github.com/bentoml/BentoML
