@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-25
+
+Initial release.
+
 ### Added
 
-- Initial scaffolding for the async BentoML client.
 - `Client` with a `ClientBuilder` (base URL, bearer token, timeout, retries).
 - Generic `Client::call` for invoking arbitrary JSON service endpoints.
 - Retries for transient failures via `reqwest-middleware` (exponential backoff).
@@ -21,3 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `call_bytes` (binary responses).
 - `Streaming` trait (feature `stream`): `stream` returns a `ByteStream`.
 - `rustls-tls` (default), `native-tls`, `stream`, and `tracing` feature flags.
+
+[unreleased]: https://github.com/martsokha/bentoml/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/martsokha/bentoml/releases/tag/v0.1.0
