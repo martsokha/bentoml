@@ -3,7 +3,7 @@
 mod builder;
 mod endpoint;
 mod headers;
-mod response;
+mod reply;
 
 pub mod multipart;
 
@@ -23,7 +23,7 @@ use url::Url;
 pub use self::builder::ClientBuilder;
 pub use self::endpoint::Endpoint;
 pub(crate) use self::headers::Headers;
-pub use self::response::EndpointResponse;
+pub use self::reply::EndpointReply;
 use crate::error::{Error, Result};
 
 /// An async client for a single BentoML service.

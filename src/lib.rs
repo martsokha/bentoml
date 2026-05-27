@@ -23,5 +23,5 @@ pub mod stream;
 #[doc(hidden)]
 pub mod prelude;
 
-pub use crate::client::{Client, ClientBuilder, Endpoint, EndpointResponse, multipart};
+pub use crate::client::{Client, ClientBuilder, Endpoint, EndpointReply, multipart};
 pub use crate::error::{Error, Result};

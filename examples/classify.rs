@@ -45,7 +45,9 @@ async fn main() -> Result<()> {
     // file part — matching how the service's parameters are named.
     let body = Multipart::new().field("top_k", &3).part(
         "image",
-        Part::new(image).file_name("image.jpg").mime("image/jpeg"),
+        Part::new(image)
+            .with_file_name("image.jpg")
+            .with_mime("image/jpeg"),
     );
 
     let result: Classification = client

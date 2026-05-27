@@ -71,7 +71,7 @@ A `Client::endpoint(route)` handle covers the BentoML HTTP surface:
 
 - `call` / `call_bytes` / `call_multipart`: send a JSON, raw-binary, or
   `multipart/form-data` body (built with `multipart::Multipart`), returning an
-  `EndpointResponse` you read as `.json::<R>()`, `.bytes()`, `.text()`, or (feature
+  `EndpointReply` you read as `.json::<R>()`, `.bytes()`, `.text()`, or (feature
   `stream`) `.stream()` — so input and output encodings are chosen independently.
 - `invoke`: the JSON-in, JSON-out shorthand — `invoke(&p)` deserializes the response
   for you, equivalent to `call(&p).await?.json().await?`.
@@ -79,7 +79,7 @@ A `Client::endpoint(route)` handle covers the BentoML HTTP surface:
   (`@bentoml.task`); return a `TaskHandle` for `status`, `retry`, `cancel`, and a
   result read as `json::<R>()` / `bytes()` / `text()`.
 
-`EndpointResponse::stream()` yields a `ByteStream` of response chunks; decode it with
+`EndpointReply::stream()` yields a `ByteStream` of response chunks; decode it with
 `.text()`, `.lines()`, or `.json::<T>()`.
 
 The `Client` itself provides health checks: `is_ready` / `is_live` and
@@ -89,7 +89,7 @@ These are gated by feature flags:
 
 - `rustls-tls` *(default)*: HTTPS via Rustls.
 - `native-tls`: HTTPS via the platform-native TLS stack.
-- `stream`: response streaming via `EndpointResponse::stream`.
+- `stream`: response streaming via `EndpointReply::stream`.
 - `tracing`: `#[tracing::instrument]` spans on request methods, including any
   `x-request-id` as a `request_id` field.
 

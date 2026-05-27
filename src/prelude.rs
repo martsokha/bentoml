@@ -6,4 +6,4 @@
 
 pub use crate::error::{Error, Result};
 pub use crate::multipart::{Multipart, Part};
-pub use crate::{Client, ClientBuilder, Endpoint, EndpointResponse};
+pub use crate::{Client, ClientBuilder, Endpoint, EndpointReply};

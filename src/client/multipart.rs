@@ -22,7 +22,7 @@ use crate::error::{Error, Result};
 /// # fn build(image: Vec<u8>) -> Multipart {
 /// Multipart::new()
 ///     .field("prompt", &"a bento box")
-///     .part("image", Part::new(image).file_name("image.jpg").mime("image/jpeg"))
+///     .part("image", Part::new(image).with_file_name("image.jpg").with_mime("image/jpeg"))
 /// # }
 /// ```
 #[derive(Default)]
@@ -93,10 +93,10 @@ impl std::fmt::Debug for Multipart {
 /// A single file part of a [`Multipart`] body.
 ///
 /// Created from its bytes with [`Part::new`]; the file name and MIME type are
-/// optional metadata set with [`file_name`] and [`mime`].
+/// optional metadata set with [`with_file_name`] and [`with_mime`].
 ///
-/// [`file_name`]: Part::file_name
-/// [`mime`]: Part::mime
+/// [`with_file_name`]: Part::with_file_name
+/// [`with_mime`]: Part::with_mime
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct Part {
@@ -116,13 +116,13 @@ impl Part {
     }
 
     /// Sets the part's file name.
-    pub fn file_name(mut self, file_name: impl Into<String>) -> Self {
+    pub fn with_file_name(mut self, file_name: impl Into<String>) -> Self {
         self.file_name = Some(file_name.into());
         self
     }
 
     /// Sets the part's MIME type, e.g. `"image/jpeg"`.
-    pub fn mime(mut self, mime: impl Into<String>) -> Self {
+    pub fn with_mime(mut self, mime: impl Into<String>) -> Self {
         self.mime = Some(mime.into());
         self
     }

@@ -4,11 +4,11 @@
 //! The transport does not impose SSE or other framing: a `Generator[str]` endpoint
 //! streams raw text, a `Generator[Model]` endpoint streams concatenated JSON values,
 //! and chunk boundaries follow the network, not logical records.
-//! [`EndpointResponse::stream`] returns the raw [`ByteStream`]; [`text`], [`lines`],
+//! [`EndpointReply::stream`] returns the raw [`ByteStream`]; [`text`], [`lines`],
 //! and [`json`] adapt it for the common text, newline-delimited, and JSON-object
 //! cases.
 //!
-//! [`EndpointResponse::stream`]: crate::EndpointResponse::stream
+//! [`EndpointReply::stream`]: crate::EndpointReply::stream
 //! [`text`]: ByteStream::text
 //! [`lines`]: ByteStream::lines
 //! [`json`]: ByteStream::json
@@ -28,10 +28,10 @@ use serde::de::DeserializeOwned;
 pub use self::json::JsonStream;
 pub use self::line::LineStream;
 pub use self::text::TextStream;
-use crate::EndpointResponse;
+use crate::EndpointReply;
 use crate::error::Result;
 
-impl EndpointResponse {
+impl EndpointReply {
     /// Streams the response body as a sequence of chunks. Requires the `stream`
     /// feature.
     ///
@@ -45,10 +45,10 @@ impl EndpointResponse {
 
 /// A [`Stream`] of response body chunks, with errors mapped to [`crate::Error`].
 ///
-/// Obtained from [`EndpointResponse::stream`].
+/// Obtained from [`EndpointReply::stream`].
 ///
 /// [`Stream`]: futures_core::Stream
-/// [`EndpointResponse::stream`]: crate::EndpointResponse::stream
+/// [`EndpointReply::stream`]: crate::EndpointReply::stream
 pub struct ByteStream {
     inner: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>,
 }
