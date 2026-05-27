@@ -113,6 +113,7 @@ impl Error {
     }
 
     /// A `Decode` error with a message and a source cause.
+    #[cfg(feature = "stream")]
     pub(crate) fn decode(message: impl Into<String>, source: impl Into<Source>) -> Self {
         Self::Decode {
             message: message.into(),
@@ -121,6 +122,7 @@ impl Error {
     }
 
     /// A `Decode` error with just a message.
+    #[cfg(feature = "stream")]
     pub(crate) fn decode_message(message: impl Into<String>) -> Self {
         Self::Decode {
             message: message.into(),

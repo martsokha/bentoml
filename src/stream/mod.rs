@@ -37,7 +37,7 @@ impl Endpoint {
     ///
     /// Decode the chunks with [`ByteStream::text`], [`ByteStream::lines`], or
     /// [`ByteStream::json`].
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route()), err))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route(), request_id = self.request_id()), err))]
     pub async fn stream<T>(&self, payload: &T) -> Result<ByteStream>
     where
         T: Serialize + ?Sized + Sync,

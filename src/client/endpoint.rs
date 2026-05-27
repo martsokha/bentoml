@@ -62,6 +62,12 @@ impl Endpoint {
         &self.route
     }
 
+    /// The `x-request-id` set on this handle, if any. Used to enrich tracing spans.
+    #[cfg(feature = "tracing")]
+    pub(crate) fn request_id(&self) -> Option<&str> {
+        self.headers.request_id()
+    }
+
     /// Adds a header sent with every request made through this handle.
     ///
     /// Sent in addition to any configured on the client via
@@ -106,7 +112,7 @@ impl Endpoint {
     /// `POST` by default.
     ///
     /// [`call_json`]: Self::call_json
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route), err))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route, request_id = self.request_id()), err))]
     pub async fn call<T, R>(&self, payload: &T) -> Result<R>
     where
         T: Serialize + ?Sized,
@@ -117,7 +123,7 @@ impl Endpoint {
 
     /// Invokes the endpoint with the given JSON `payload`, returning the raw
     /// [`EndpointResponse`] to read as JSON, bytes, or text.
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route), err))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route, request_id = self.request_id()), err))]
     pub async fn call_json<T>(&self, payload: &T) -> Result<EndpointResponse>
     where
         T: Serialize + ?Sized,
@@ -128,7 +134,7 @@ impl Endpoint {
 
     /// Invokes the endpoint with a raw byte body, for endpoints that take a single
     /// positional binary ("root") input. Returns the raw [`EndpointResponse`].
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.route), err))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.route, request_id = self.request_id()), err))]
     pub async fn call_bytes(&self, body: impl Into<Bytes>) -> Result<EndpointResponse> {
         let req = self.request(self.route())?.body(body.into());
         Ok(EndpointResponse::new(self.client.send(req).await?))
@@ -137,7 +143,7 @@ impl Endpoint {
     /// Invokes the endpoint with a `multipart/form-data` body, for endpoints that
     /// take file or image inputs. Build the body with [`Multipart`]. Returns the raw
     /// [`EndpointResponse`].
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.route), err))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.route, request_id = self.request_id()), err))]
     pub async fn call_multipart(&self, body: Multipart) -> Result<EndpointResponse> {
         let req = self.request(self.route())?.multipart(body.into_form()?);
         Ok(EndpointResponse::new(self.client.send(req).await?))

@@ -47,6 +47,12 @@ impl TaskHandle {
         &self.task_id
     }
 
+    /// The `x-request-id` carried from the submitting endpoint, for span correlation.
+    #[cfg(feature = "tracing")]
+    fn request_id(&self) -> Option<&str> {
+        self.headers.request_id()
+    }
+
     /// Builds a `task_id`-scoped request for `op`, with bearer token and headers.
     fn request(&self, op: &str, method: Method) -> Result<RequestBuilder> {
         let url = self
@@ -63,7 +69,7 @@ impl TaskHandle {
     /// Fetches the current status of the task.
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id), err)
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id, request_id = self.request_id()), err)
     )]
     pub async fn status(&self) -> Result<TaskStatus> {
         let req = self.request("status", Method::GET)?;
@@ -81,7 +87,7 @@ impl TaskHandle {
     /// [`Completed`]: TaskStatus::Completed
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id), err)
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id, request_id = self.request_id()), err)
     )]
     pub async fn get<R: DeserializeOwned>(&self) -> Result<R> {
         let status = self.status().await?;
@@ -98,7 +104,7 @@ impl TaskHandle {
     /// Re-runs the task, returning a handle to the new run.
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id), err)
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id, request_id = self.request_id()), err)
     )]
     pub async fn retry(&self) -> Result<TaskHandle> {
         let req = self.request("retry", Method::POST)?;
@@ -114,7 +120,7 @@ impl TaskHandle {
     /// Cancels the task before it starts executing.
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id), err)
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id, request_id = self.request_id()), err)
     )]
     pub async fn cancel(&self) -> Result<()> {
         let req = self.request("cancel", Method::PUT)?;

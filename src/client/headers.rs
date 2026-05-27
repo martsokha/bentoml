@@ -39,6 +39,12 @@ impl Headers {
         }
     }
 
+    /// The `x-request-id` header value, if one has been set, for span correlation.
+    #[cfg(feature = "tracing")]
+    pub(crate) fn request_id(&self) -> Option<&str> {
+        self.map.get("x-request-id").and_then(|v| v.to_str().ok())
+    }
+
     /// Applies the accumulated headers to `req`, or returns the recorded parse error.
     pub(crate) fn apply(&self, mut req: RequestBuilder) -> Result<RequestBuilder> {
         if let Some(error) = &self.error {
