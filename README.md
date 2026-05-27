@@ -72,12 +72,13 @@ A `Client::endpoint(route)` handle covers the BentoML HTTP surface:
 - `call`: the common JSON-in, JSON-out request.
 - `call_json` / `call_bytes` / `call_multipart`: send a JSON, raw-binary, or
   `multipart/form-data` body (built with `multipart::Multipart`), returning an
-  `EndpointResponse` you read as `.json::<R>()`, `.bytes()`, or `.text()` — so input
-  and output encodings are chosen independently.
+  `EndpointResponse` you read as `.json::<R>()`, `.bytes()`, `.text()`, or (feature
+  `stream`) `.stream()` — so input and output encodings are chosen independently.
 - `submit`: async task queues (`@bentoml.task`); returns a `TaskHandle` for
   `status` / `get` / `retry` / `cancel`.
-- `stream` (feature `stream`): returns a `ByteStream` of response chunks; decode it
-  with `.text()`, `.lines()`, or `.json::<T>()`.
+
+`EndpointResponse::stream()` yields a `ByteStream` of response chunks; decode it with
+`.text()`, `.lines()`, or `.json::<T>()`.
 
 The `Client` itself provides health checks: `is_ready` / `is_live` and
 `wait_until_ready`.
@@ -86,7 +87,7 @@ These are gated by feature flags:
 
 - `rustls-tls` *(default)*: HTTPS via Rustls.
 - `native-tls`: HTTPS via the platform-native TLS stack.
-- `stream`: streaming response endpoints (`Endpoint::stream`).
+- `stream`: response streaming via `EndpointResponse::stream`.
 - `tracing`: `#[tracing::instrument]` spans on request methods, including any
   `x-request-id` as a `request_id` field.
 

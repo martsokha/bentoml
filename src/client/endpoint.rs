@@ -15,8 +15,8 @@ use crate::error::Result;
 ///
 /// Obtain one with [`Client::endpoint`]. The route is named once; calls are made on
 /// the handle rather than passing the route to each method. It carries the generic
-/// [`call`], the body-specific `call_json` / `call_bytes` / `call_multipart`, async
-/// task queues ([`submit`]), and (behind the `stream` feature) `stream`.
+/// [`call`], the body-specific `call_json` / `call_bytes` / `call_multipart` (each
+/// returning an [`EndpointResponse`]), and async task queues ([`submit`]).
 ///
 /// Per-call headers are attached with [`with_header`]: build a fresh handle per
 /// request when they vary.

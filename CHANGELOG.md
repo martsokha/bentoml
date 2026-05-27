@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** streaming is now a reader on `EndpointResponse` rather than a separate
+  `Endpoint::stream` method. Call any input method and stream its response:
+  `endpoint.call_json(&p).await?.stream()` (also `call_bytes` / `call_multipart`),
+  closing the gap where only a JSON-bodied request could be streamed.
+
 ## [0.4.0] - 2026-05-27
 
 ### Changed
