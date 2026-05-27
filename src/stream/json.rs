@@ -48,7 +48,7 @@ impl<T: DeserializeOwned> JsonStream<T> {
                 Some(Err(e)) if e.is_eof() => break,
                 Some(Err(e)) => {
                     self.ready
-                        .push_back(Err(Error::Decode(format!("invalid json value: {e}"))));
+                        .push_back(Err(Error::decode("invalid json value", e)));
                     // Skip the rest of this buffer; on malformed input there is no
                     // reliable resync point.
                     let consumed = iter.byte_offset();
@@ -78,8 +78,8 @@ impl<T: DeserializeOwned + Unpin> Stream for JsonStream<T> {
                 // Non-whitespace bytes left over means a trailing incomplete value.
                 if this.buf.iter().any(|b| !b.is_ascii_whitespace()) {
                     this.buf.clear();
-                    return Poll::Ready(Some(Err(Error::Decode(
-                        "trailing incomplete json value".to_owned(),
+                    return Poll::Ready(Some(Err(Error::decode_message(
+                        "trailing incomplete json value",
                     ))));
                 }
                 return Poll::Ready(None);

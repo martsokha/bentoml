@@ -3,8 +3,9 @@
 mod builder;
 mod endpoint;
 mod headers;
-mod multipart;
 mod response;
+
+pub mod multipart;
 
 use std::borrow::Cow;
 use std::future::Future;
@@ -19,11 +20,10 @@ use reqwest_retry::RetryTransientMiddleware;
 use reqwest_retry::policies::ExponentialBackoff;
 use url::Url;
 
-pub use self::builder::{ClientBuilder, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT};
+pub use self::builder::ClientBuilder;
 pub use self::endpoint::Endpoint;
 pub(crate) use self::headers::Headers;
-pub use self::multipart::Multipart;
-pub use self::response::Response;
+pub use self::response::EndpointResponse;
 use crate::error::{Error, Result};
 
 /// An async client for a single BentoML service.
@@ -191,14 +191,15 @@ impl Client {
     pub(crate) fn assemble(
         base_url: String,
         token: Option<String>,
-        timeout: Duration,
+        timeout: Option<Duration>,
         max_retries: u32,
         headers: reqwest::header::HeaderMap,
     ) -> Result<Self> {
-        let inner = reqwest::Client::builder()
-            .timeout(timeout)
-            .default_headers(headers)
-            .build()?;
+        let mut http = reqwest::Client::builder().default_headers(headers);
+        if let Some(timeout) = timeout {
+            http = http.timeout(timeout);
+        }
+        let inner = http.build()?;
 
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(max_retries);
 

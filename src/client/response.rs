@@ -1,4 +1,4 @@
-//! The [`Response`] returned by the endpoint `call_*` methods.
+//! The [`EndpointResponse`] returned by the endpoint `call_*` methods.
 
 use bytes::Bytes;
 use serde::de::DeserializeOwned;
@@ -15,15 +15,15 @@ use crate::error::Result;
 /// reading it only fails on a decode/transport error.
 ///
 /// [`Endpoint`]: crate::Endpoint
-/// [`json`]: Response::json
-/// [`bytes`]: Response::bytes
-/// [`text`]: Response::text
+/// [`json`]: EndpointResponse::json
+/// [`bytes`]: EndpointResponse::bytes
+/// [`text`]: EndpointResponse::text
 #[derive(Debug)]
-pub struct Response {
+pub struct EndpointResponse {
     inner: reqwest::Response,
 }
 
-impl Response {
+impl EndpointResponse {
     pub(crate) fn new(inner: reqwest::Response) -> Self {
         Self { inner }
     }

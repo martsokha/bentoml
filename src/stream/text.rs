@@ -28,7 +28,7 @@ impl Stream for TextStream {
             opt.map(|res| {
                 let bytes = res?;
                 String::from_utf8(bytes.to_vec())
-                    .map_err(|e| Error::Decode(format!("invalid utf-8 chunk: {e}")))
+                    .map_err(|e| Error::decode("invalid utf-8 chunk", e))
             })
         })
     }

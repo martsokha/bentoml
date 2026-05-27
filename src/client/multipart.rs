@@ -1,7 +1,7 @@
-//! The [`Multipart`] body builder.
+//! The [`Multipart`] body builder and its [`Part`].
 
 use bytes::Bytes;
-use reqwest::multipart::{Form, Part};
+use reqwest::multipart::{Form, Part as ReqwestPart};
 use serde::Serialize;
 
 use crate::error::{Error, Result};
@@ -17,12 +17,12 @@ use crate::error::{Error, Result};
 /// an invalid MIME type, surfaces as an error when the request is made.
 ///
 /// ```no_run
-/// use bentoml::Multipart;
+/// use bentoml::multipart::{Multipart, Part};
 ///
 /// # fn build(image: Vec<u8>) -> Multipart {
 /// Multipart::new()
 ///     .field("prompt", &"a bento box")
-///     .part("image", image, "image.jpg", "image/jpeg")
+///     .part("image", Part::new(image).file_name("image.jpg").mime("image/jpeg"))
 /// # }
 /// ```
 #[derive(Default)]
@@ -56,35 +56,25 @@ impl Multipart {
         self
     }
 
-    /// Adds a file part with the given bytes, file name, and MIME type.
-    pub fn part(
-        mut self,
-        name: impl Into<String>,
-        bytes: impl Into<Bytes>,
-        file_name: impl Into<String>,
-        mime: impl AsRef<str>,
-    ) -> Self {
-        if self.error.is_none() {
-            let part = Part::bytes(bytes.into().to_vec()).file_name(file_name.into());
-            match part.mime_str(mime.as_ref()) {
-                Ok(part) => self.parts.push((name.into(), part)),
-                Err(e) => self.error = Some(format!("part {:?}: {e}", name.into())),
-            }
-        }
+    /// Adds a file [`Part`] under the given parameter name.
+    pub fn part(mut self, name: impl Into<String>, part: Part) -> Self {
+        self.parts.push((name.into(), part));
         self
     }
 
     /// Consumes the builder into a [`Form`], or returns the recorded error.
     pub(crate) fn into_form(self) -> Result<Form> {
         if let Some(error) = self.error {
-            return Err(Error::InvalidMultipart(error));
+            return Err(Error::invalid_message(format!(
+                "invalid multipart body: {error}"
+            )));
         }
         let mut form = Form::new();
         for (name, value) in self.fields {
             form = form.text(name, value);
         }
         for (name, part) in self.parts {
-            form = form.part(name, part);
+            form = form.part(name, part.into_reqwest()?);
         }
         Ok(form)
     }
@@ -97,5 +87,57 @@ impl std::fmt::Debug for Multipart {
             .field("parts", &self.parts.len())
             .field("error", &self.error)
             .finish()
+    }
+}
+
+/// A single file part of a [`Multipart`] body.
+///
+/// Created from its bytes with [`Part::new`]; the file name and MIME type are
+/// optional metadata set with [`file_name`] and [`mime`].
+///
+/// [`file_name`]: Part::file_name
+/// [`mime`]: Part::mime
+#[derive(Debug, Clone)]
+#[must_use]
+pub struct Part {
+    bytes: Bytes,
+    file_name: Option<String>,
+    mime: Option<String>,
+}
+
+impl Part {
+    /// Creates a part from its raw bytes.
+    pub fn new(bytes: impl Into<Bytes>) -> Self {
+        Self {
+            bytes: bytes.into(),
+            file_name: None,
+            mime: None,
+        }
+    }
+
+    /// Sets the part's file name.
+    pub fn file_name(mut self, file_name: impl Into<String>) -> Self {
+        self.file_name = Some(file_name.into());
+        self
+    }
+
+    /// Sets the part's MIME type, e.g. `"image/jpeg"`.
+    pub fn mime(mut self, mime: impl Into<String>) -> Self {
+        self.mime = Some(mime.into());
+        self
+    }
+
+    /// Builds the underlying reqwest part, validating the MIME type if set.
+    fn into_reqwest(self) -> Result<ReqwestPart> {
+        let mut part = ReqwestPart::bytes(self.bytes.to_vec());
+        if let Some(file_name) = self.file_name {
+            part = part.file_name(file_name);
+        }
+        if let Some(mime) = self.mime {
+            part = part
+                .mime_str(&mime)
+                .map_err(|e| Error::invalid_request(format!("invalid part mime {mime:?}"), e))?;
+        }
+        Ok(part)
     }
 }

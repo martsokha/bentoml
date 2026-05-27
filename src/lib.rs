@@ -23,8 +23,5 @@ pub mod stream;
 #[doc(hidden)]
 pub mod prelude;
 
-pub use crate::client::{
-    Client, ClientBuilder, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, Endpoint,
-    Multipart, Response,
-};
+pub use crate::client::{Client, ClientBuilder, Endpoint, EndpointResponse, multipart};
 pub use crate::error::{Error, Result};

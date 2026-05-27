@@ -7,7 +7,7 @@
 //! returns the raw [`ByteStream`]; [`text`], [`lines`], and [`json`] adapt it for the
 //! common text, newline-delimited, and JSON-object cases.
 //!
-//! [`stream`]: Streaming::stream
+//! [`stream`]: crate::Endpoint::stream
 //! [`text`]: ByteStream::text
 //! [`lines`]: ByteStream::lines
 //! [`json`]: ByteStream::json
@@ -17,7 +17,6 @@ mod line;
 mod text;
 
 use std::fmt;
-use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -32,22 +31,14 @@ pub use self::text::TextStream;
 use crate::client::Endpoint;
 use crate::error::Result;
 
-/// Streaming-response operations against a BentoML service.
-///
-/// Implemented for [`Endpoint`]. Requires the `stream` feature.
-pub trait Streaming {
+impl Endpoint {
     /// Invokes the streaming endpoint with the given JSON `payload`, returning a
-    /// [`Stream`] over the response body chunks.
+    /// [`ByteStream`] over the response body chunks. Requires the `stream` feature.
     ///
-    /// [`Stream`]: futures_core::Stream
-    fn stream<T>(&self, payload: &T) -> impl Future<Output = Result<ByteStream>> + Send
-    where
-        T: Serialize + ?Sized + Sync;
-}
-
-impl Streaming for Endpoint {
+    /// Decode the chunks with [`ByteStream::text`], [`ByteStream::lines`], or
+    /// [`ByteStream::json`].
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route()), err))]
-    async fn stream<T>(&self, payload: &T) -> Result<ByteStream>
+    pub async fn stream<T>(&self, payload: &T) -> Result<ByteStream>
     where
         T: Serialize + ?Sized + Sync,
     {

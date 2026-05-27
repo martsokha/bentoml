@@ -5,6 +5,5 @@
 //! ```
 
 pub use crate::error::{Error, Result};
-#[cfg(feature = "stream")]
-pub use crate::stream::Streaming;
-pub use crate::{Client, ClientBuilder, Endpoint, Multipart, Response};
+pub use crate::multipart::{Multipart, Part};
+pub use crate::{Client, ClientBuilder, Endpoint, EndpointResponse};
