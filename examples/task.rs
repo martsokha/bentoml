@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
 
-    let result: GenerateResponse = task.get().await?;
+    let result: GenerateResponse = task.json().await?;
     println!("result url: {}", result.url);
 
     Ok(())

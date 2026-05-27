@@ -13,8 +13,8 @@ with `client.endpoint(route)` and call it over your own `serde` types.
 
 ## Features
 
-- **Typed calls**: `endpoint(route).call(&payload)` over your own `serde` request and
-  response types, with no codegen or per-service bindings.
+- **Typed calls**: `endpoint(route).invoke(&payload)` over your own `serde` request
+  and response types, with no codegen or per-service bindings.
 - **Async task queues**: submit `@bentoml.task` jobs and poll status, fetch results,
   retry, or cancel through a `TaskHandle`.
 - **File and streaming I/O**: `multipart/form-data` file inputs, raw-binary root
@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
 
     let resp: SummarizeResponse = client
         .endpoint("summarize")
-        .call(&SummarizeRequest { text: "...".into() })
+        .invoke(&SummarizeRequest { text: "...".into() })
         .await?;
 
     println!("{}", resp.summary);
@@ -69,13 +69,15 @@ A `Client::endpoint(route)` handle names the route once; calls are made on it. S
 
 A `Client::endpoint(route)` handle covers the BentoML HTTP surface:
 
-- `call`: the common JSON-in, JSON-out request.
-- `call_json` / `call_bytes` / `call_multipart`: send a JSON, raw-binary, or
+- `call` / `call_bytes` / `call_multipart`: send a JSON, raw-binary, or
   `multipart/form-data` body (built with `multipart::Multipart`), returning an
   `EndpointResponse` you read as `.json::<R>()`, `.bytes()`, `.text()`, or (feature
   `stream`) `.stream()` — so input and output encodings are chosen independently.
-- `submit`: async task queues (`@bentoml.task`); returns a `TaskHandle` for
-  `status` / `get` / `retry` / `cancel`.
+- `invoke`: the JSON-in, JSON-out shorthand — `invoke(&p)` deserializes the response
+  for you, equivalent to `call(&p).await?.json().await?`.
+- `submit` / `submit_bytes` / `submit_multipart`: async task queues
+  (`@bentoml.task`); return a `TaskHandle` for `status`, `retry`, `cancel`, and a
+  result read as `json::<R>()` / `bytes()` / `text()`.
 
 `EndpointResponse::stream()` yields a `ByteStream` of response chunks; decode it with
 `.text()`, `.lines()`, or `.json::<T>()`.

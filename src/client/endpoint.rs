@@ -14,9 +14,9 @@ use crate::error::Result;
 /// A handle to a single service endpoint, pairing a route with its [`Client`].
 ///
 /// Obtain one with [`Client::endpoint`]. The route is named once; calls are made on
-/// the handle rather than passing the route to each method. It carries the generic
-/// [`call`], the body-specific `call_json` / `call_bytes` / `call_multipart` (each
-/// returning an [`EndpointResponse`]), and async task queues ([`submit`]).
+/// the handle rather than passing the route to each method. The body-specific
+/// [`call`] / `call_bytes` / `call_multipart` each return an [`EndpointResponse`];
+/// async task queues use [`submit`] (and `submit_bytes` / `submit_multipart`).
 ///
 /// Per-call headers are attached with [`with_header`]: build a fresh handle per
 /// request when they vary.
@@ -31,7 +31,7 @@ use crate::error::Result;
 /// let resp: Resp = client
 ///     .endpoint("summarize")
 ///     .with_request_id("req-42")
-///     .call(&Req { text: "...".into() })
+///     .invoke(&Req { text: "...".into() })
 ///     .await?;
 /// # let _ = resp;
 /// # Ok(())
@@ -102,34 +102,38 @@ impl Endpoint {
     pub fn with_request_id(self, id: impl AsRef<str>) -> Self {
         self.with_header("x-request-id", id)
     }
+}
 
-    /// Invokes the endpoint with the given JSON `payload`, returning the deserialized
-    /// JSON response.
-    ///
-    /// This is the common JSON-in, JSON-out case, shorthand for
-    /// `call_json(payload).await?.json().await`. For other response encodings, use
-    /// [`call_json`] and read the [`EndpointResponse`] as you like. BentoML endpoints are
-    /// `POST` by default.
-    ///
-    /// [`call_json`]: Self::call_json
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route, request_id = self.request_id()), err))]
-    pub async fn call<T, R>(&self, payload: &T) -> Result<R>
-    where
-        T: Serialize + ?Sized,
-        R: DeserializeOwned,
-    {
-        self.call_json(payload).await?.json().await
-    }
-
+impl Endpoint {
     /// Invokes the endpoint with the given JSON `payload`, returning the raw
-    /// [`EndpointResponse`] to read as JSON, bytes, or text.
+    /// [`EndpointResponse`] to read as `.json::<R>()`, `.bytes()`, or `.text()`.
+    ///
+    /// BentoML endpoints are `POST` by default. For the common JSON-in, JSON-out
+    /// case, [`invoke`] deserializes the response in one step.
+    ///
+    /// [`invoke`]: Self::invoke
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route, request_id = self.request_id()), err))]
-    pub async fn call_json<T>(&self, payload: &T) -> Result<EndpointResponse>
+    pub async fn call<T>(&self, payload: &T) -> Result<EndpointResponse>
     where
         T: Serialize + ?Sized,
     {
         let req = self.request(self.route())?.json(payload);
         Ok(EndpointResponse::new(self.client.send(req).await?))
+    }
+
+    /// Invokes the endpoint with a JSON `payload` and deserializes the JSON response
+    /// into `R` — the common JSON-in, JSON-out case.
+    ///
+    /// Shorthand for `call(payload).await?.json().await`. Use [`call`] when you need
+    /// the response as bytes, text, or a stream.
+    ///
+    /// [`call`]: Self::call
+    pub async fn invoke<T, R>(&self, payload: &T) -> Result<R>
+    where
+        T: Serialize + ?Sized,
+        R: DeserializeOwned,
+    {
+        self.call(payload).await?.json().await
     }
 
     /// Invokes the endpoint with a raw byte body, for endpoints that take a single

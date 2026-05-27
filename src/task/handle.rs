@@ -4,6 +4,7 @@
 
 use std::borrow::Cow;
 
+use bytes::Bytes;
 use reqwest::Method;
 use reqwest_middleware::RequestBuilder;
 use serde::de::DeserializeOwned;
@@ -77,19 +78,60 @@ impl TaskHandle {
         Ok(info.status)
     }
 
-    /// Fetches the completed result of the task, deserialized as `R`.
+    /// Fetches the completed result, deserialized as JSON into `R`.
     ///
     /// Checks the task status first and returns [`Error::TaskNotComplete`] unless the
     /// task has [`Completed`], so a pending, failed, or canceled task yields a clear
-    /// error rather than a deserialization failure.
+    /// error rather than a deserialization failure. Use [`bytes`] for a binary/file
+    /// result or [`text`] for a text result.
     ///
     /// [`Error::TaskNotComplete`]: crate::Error::TaskNotComplete
     /// [`Completed`]: TaskStatus::Completed
+    /// [`bytes`]: Self::bytes
+    /// [`text`]: Self::text
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id, request_id = self.request_id()), err)
     )]
-    pub async fn get<R: DeserializeOwned>(&self) -> Result<R> {
+    pub async fn json<R: DeserializeOwned>(&self) -> Result<R> {
+        Ok(self.result_response().await?.json().await?)
+    }
+
+    /// Fetches the completed result as raw bytes, for a binary or file output.
+    ///
+    /// Like [`json`], this returns [`Error::TaskNotComplete`] unless the task has
+    /// completed.
+    ///
+    /// [`json`]: Self::json
+    /// [`Error::TaskNotComplete`]: crate::Error::TaskNotComplete
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id, request_id = self.request_id()), err)
+    )]
+    pub async fn bytes(&self) -> Result<Bytes> {
+        Ok(self.result_response().await?.bytes().await?)
+    }
+
+    /// Fetches the completed result as UTF-8 text, for a `text/plain` output.
+    ///
+    /// Like [`json`], this returns [`Error::TaskNotComplete`] unless the task has
+    /// completed.
+    ///
+    /// [`json`]: Self::json
+    /// [`Error::TaskNotComplete`]: crate::Error::TaskNotComplete
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id, request_id = self.request_id()), err)
+    )]
+    pub async fn text(&self) -> Result<String> {
+        Ok(self.result_response().await?.text().await?)
+    }
+
+    /// Checks the task is [`Completed`], then fetches the raw result response. Shared
+    /// by `json` / `bytes` / `text`.
+    ///
+    /// [`Completed`]: TaskStatus::Completed
+    async fn result_response(&self) -> Result<reqwest::Response> {
         let status = self.status().await?;
         if status != TaskStatus::Completed {
             return Err(Error::TaskNotComplete {
@@ -98,7 +140,7 @@ impl TaskHandle {
             });
         }
         let req = self.request("get", Method::GET)?;
-        Ok(self.client.send(req).await?.json().await?)
+        self.client.send(req).await
     }
 
     /// Re-runs the task, returning a handle to the new run.

@@ -9,10 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** `Endpoint::call` now returns an `EndpointResponse` (read it as
+  `.json::<R>()` / `.bytes()` / `.text()`) instead of deserializing to `R` directly.
+  The old `call_json` is gone — `call` *is* the JSON-body method, aligning the
+  `call` / `call_bytes` / `call_multipart` family with `submit` / `submit_bytes` /
+  `submit_multipart`. Update `call(&p).await?` to `call(&p).await?.json().await?`.
 - **Breaking:** streaming is now a reader on `EndpointResponse` rather than a separate
   `Endpoint::stream` method. Call any input method and stream its response:
-  `endpoint.call_json(&p).await?.stream()` (also `call_bytes` / `call_multipart`),
+  `endpoint.call(&p).await?.stream()` (also `call_bytes` / `call_multipart`),
   closing the gap where only a JSON-bodied request could be streamed.
+- **Breaking:** renamed `TaskHandle::get` to `TaskHandle::json`, matching the
+  `EndpointResponse` readers.
+
+### Added
+
+- `Endpoint::invoke`, a JSON-in/JSON-out shorthand that deserializes the response in
+  one step (`invoke(&p)` == `call(&p).await?.json().await?`).
+- `Endpoint::submit_bytes` and `Endpoint::submit_multipart` for raw-binary and
+  `multipart/form-data` task inputs, mirroring `call_bytes` / `call_multipart` (a
+  `@bentoml.task` accepts the same inputs as a regular endpoint).
+- `TaskHandle::bytes` and `TaskHandle::text` read a completed task's result as raw
+  bytes (binary/file output) or UTF-8 text, alongside the existing `json`.
 
 ## [0.4.0] - 2026-05-27
 
