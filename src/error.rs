@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use crate::model::TaskStatus;
+use crate::task::TaskStatus;
 
 /// A convenient alias for results returned by this crate.
 pub type Result<T, E = Error> = std::result::Result<T, E>;

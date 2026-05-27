@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** removed the `Readiness` trait; `is_ready`, `is_live`, and
+  `wait_until_ready` are now inherent methods on `Client`. Drop the
+  `use bentoml::prelude::Readiness;` import (or the prelude glob covers it); the
+  calls themselves are unchanged.
+- **Breaking:** removed the `Tasks` trait; `submit` is now an inherent method on
+  `Endpoint`. Drop the `use bentoml::prelude::Tasks;` import; the call is unchanged.
+
+### Added
+
+- `ByteStream::json::<T>()` yields one deserialized `T` per JSON value, parsing the
+  concatenated-JSON wire format BentoML uses for `Generator[Model]` endpoints
+  (buffered across chunk boundaries).
+
 ## [0.3.0] - 2026-05-25
 
 ### Changed

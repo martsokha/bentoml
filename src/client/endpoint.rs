@@ -12,9 +12,9 @@ use crate::error::Result;
 /// A handle to a single service endpoint, pairing a route with its [`Client`].
 ///
 /// Obtain one with [`Client::endpoint`]. The route is named once; calls are made on
-/// the handle rather than passing the route to each method. Beyond the generic
-/// [`call`], the capability traits ([`Tasks`], [`Files`], and `Streaming`) are
-/// implemented for `Endpoint`.
+/// the handle rather than passing the route to each method. It carries the generic
+/// [`call`] and async task queues ([`submit`]) as inherent methods; the [`Files`] and
+/// (behind the `stream` feature) `Streaming` traits add the rest of the surface.
 ///
 /// Per-call headers are attached with [`with_header`]: build a fresh handle per
 /// request when they vary.
@@ -37,9 +37,9 @@ use crate::error::Result;
 /// ```
 ///
 /// [`call`]: Endpoint::call
+/// [`submit`]: Endpoint::submit
 /// [`with_header`]: Endpoint::with_header
-/// [`Tasks`]: crate::service::Tasks
-/// [`Files`]: crate::service::Files
+/// [`Files`]: crate::files::Files
 #[derive(Debug, Clone)]
 pub struct Endpoint {
     client: Client,

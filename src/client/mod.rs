@@ -5,8 +5,9 @@ mod endpoint;
 mod headers;
 
 use std::borrow::Cow;
+use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use reqwest::Response;
 use reqwest_middleware::{
@@ -63,6 +64,53 @@ impl Client {
     /// Accepts a `&'static str` (borrowed without allocating) or an owned `String`.
     pub fn endpoint(&self, route: impl Into<Cow<'static, str>>) -> Endpoint {
         Endpoint::new(self.clone(), route.into())
+    }
+
+    /// Returns whether the service reports itself ready, via `/readyz`.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
+    pub async fn is_ready(&self) -> Result<bool> {
+        self.health("readyz").await
+    }
+
+    /// Returns whether the service reports itself alive, via `/livez`.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
+    pub async fn is_live(&self) -> Result<bool> {
+        self.health("livez").await
+    }
+
+    /// Polls [`is_ready`] until it returns `true` or `timeout` elapses, awaiting
+    /// `sleep(interval)` between attempts.
+    ///
+    /// The crate is runtime-agnostic, so the caller supplies the delay: `sleep` is
+    /// invoked with `interval` and the returned future is awaited. With Tokio, pass
+    /// `tokio::time::sleep`.
+    ///
+    /// Returns [`Error::Timeout`] if the service does not become ready in time.
+    ///
+    /// [`is_ready`]: Self::is_ready
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, sleep), err))]
+    pub async fn wait_until_ready<S, F>(
+        &self,
+        timeout: Duration,
+        interval: Duration,
+        mut sleep: S,
+    ) -> Result<()>
+    where
+        S: FnMut(Duration) -> F + Send,
+        F: Future<Output = ()> + Send,
+    {
+        let deadline = Instant::now() + timeout;
+        loop {
+            // Ignore transient errors (e.g. connection refused during startup);
+            // only the deadline ends the loop.
+            if matches!(self.is_ready().await, Ok(true)) {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err(Error::Timeout { timeout });
+            }
+            sleep(interval).await;
+        }
     }
 
     /// Joins a route onto the base URL, tolerating an optional leading slash.

@@ -1,6 +1,6 @@
-//! The [`TaskHandle`] returned by [`Tasks::submit`].
+//! The [`TaskHandle`] returned by [`Endpoint::submit`].
 //!
-//! [`Tasks::submit`]: super::Tasks::submit
+//! [`Endpoint::submit`]: crate::Endpoint::submit
 
 use std::borrow::Cow;
 
@@ -9,14 +9,16 @@ use reqwest_middleware::RequestBuilder;
 use serde::de::DeserializeOwned;
 
 use super::join;
+use super::model::{TaskInfo, TaskStatus};
 use crate::client::{Client, Headers};
 use crate::error::{Error, Result};
-use crate::model::{TaskInfo, TaskStatus};
 
 /// A handle to a submitted task, pairing its id with the client that created it.
 ///
-/// Carries the per-call headers from the [`Endpoint`](crate::Endpoint) that submitted
-/// it, so they apply to every status/result/retry/cancel request too.
+/// Carries the per-call headers from the [`Endpoint`] that submitted it, so they
+/// apply to every status/result/retry/cancel request too.
+///
+/// [`Endpoint`]: crate::Endpoint
 #[derive(Debug, Clone)]
 pub struct TaskHandle {
     client: Client,

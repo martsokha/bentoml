@@ -14,8 +14,12 @@ compile_error!(
 mod client;
 mod error;
 
-pub mod model;
-pub mod service;
+pub mod files;
+pub mod task;
+
+#[cfg(feature = "stream")]
+#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+pub mod stream;
 
 #[doc(hidden)]
 pub mod prelude;

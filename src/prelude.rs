@@ -5,7 +5,7 @@
 //! ```
 
 pub use crate::error::{Error, Result};
+pub use crate::files::Files;
 #[cfg(feature = "stream")]
-pub use crate::service::Streaming;
-pub use crate::service::{Files, Readiness, Tasks};
+pub use crate::stream::Streaming;
 pub use crate::{Client, ClientBuilder, Endpoint};

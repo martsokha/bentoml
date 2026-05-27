@@ -2,12 +2,19 @@
 //!
 //! BentoML streaming endpoints return the response body as a sequence of chunks.
 //! The transport does not impose SSE or other framing: a `Generator[str]` endpoint
-//! streams raw text, a model endpoint streams its serialized chunks, and chunk
-//! boundaries follow the network, not logical records. This trait exposes the raw
-//! [`ByteStream`]; [`ByteStream::text`] and [`ByteStream::lines`] adapt it for the
-//! common text and newline-delimited (e.g. JSONL) cases.
+//! streams raw text, a `Generator[Model]` endpoint streams concatenated JSON values,
+//! and chunk boundaries follow the network, not logical records. The [`stream`] call
+//! returns the raw [`ByteStream`]; [`text`], [`lines`], and [`json`] adapt it for the
+//! common text, newline-delimited, and JSON-object cases.
+//!
+//! [`stream`]: Streaming::stream
+//! [`text`]: ByteStream::text
+//! [`lines`]: ByteStream::lines
+//! [`json`]: ByteStream::json
 
-mod decode;
+mod json;
+mod line;
+mod text;
 
 use std::fmt;
 use std::future::Future;
@@ -17,8 +24,11 @@ use std::task::{Context, Poll};
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
-pub use self::decode::{LineStream, TextStream};
+pub use self::json::JsonStream;
+pub use self::line::LineStream;
+pub use self::text::TextStream;
 use crate::client::Endpoint;
 use crate::error::Result;
 
@@ -28,6 +38,8 @@ use crate::error::Result;
 pub trait Streaming {
     /// Invokes the streaming endpoint with the given JSON `payload`, returning a
     /// [`Stream`] over the response body chunks.
+    ///
+    /// [`Stream`]: futures_core::Stream
     fn stream<T>(&self, payload: &T) -> impl Future<Output = Result<ByteStream>> + Send
     where
         T: Serialize + ?Sized + Sync;
@@ -41,18 +53,24 @@ impl Streaming for Endpoint {
     {
         let req = self.request(self.route())?.json(payload);
         let resp = self.client().send(req).await?;
-        Ok(ByteStream {
-            inner: Box::pin(resp.bytes_stream()),
-        })
+        Ok(ByteStream::new(resp.bytes_stream()))
     }
 }
 
 /// A [`Stream`] of response body chunks, with errors mapped to [`crate::Error`].
+///
+/// [`Stream`]: futures_core::Stream
 pub struct ByteStream {
     inner: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>,
 }
 
 impl ByteStream {
+    pub(super) fn new(inner: impl Stream<Item = reqwest::Result<Bytes>> + Send + 'static) -> Self {
+        Self {
+            inner: Box::pin(inner),
+        }
+    }
+
     /// Decodes each chunk as UTF-8 text.
     ///
     /// Chunks follow network boundaries, so a multi-byte character could in theory
@@ -71,6 +89,18 @@ impl ByteStream {
     /// other newline-delimited streaming endpoints.
     pub fn lines(self) -> LineStream {
         LineStream::new(self)
+    }
+
+    /// Yields one deserialized `T` per JSON value in the stream.
+    ///
+    /// BentoML streams structured outputs (e.g. `Generator[Model]`) as concatenated
+    /// JSON values with no delimiter; this parses them incrementally, buffering
+    /// across chunk boundaries. Use this rather than [`lines`] for object-streaming
+    /// endpoints, since they are not newline-delimited.
+    ///
+    /// [`lines`]: Self::lines
+    pub fn json<T: DeserializeOwned>(self) -> JsonStream<T> {
+        JsonStream::new(self)
     }
 }
 
