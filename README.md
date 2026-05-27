@@ -87,7 +87,8 @@ These are gated by feature flags:
 - `rustls-tls` *(default)*: HTTPS via Rustls.
 - `native-tls`: HTTPS via the platform-native TLS stack.
 - `stream`: streaming response endpoints (`Endpoint::stream`).
-- `tracing`: `#[tracing::instrument]` on request methods.
+- `tracing`: `#[tracing::instrument]` spans on request methods, including any
+  `x-request-id` as a `request_id` field.
 
 ## Changelog
 

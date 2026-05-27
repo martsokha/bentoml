@@ -48,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into its own form field, matching BentoML's per-parameter encoding) and `Part`
   (bytes plus optional file name and MIME type), so callers keep typed values instead
   of hand-assembling a form.
+- With the `tracing` feature, a caller-set `x-request-id` (via `with_request_id` or
+  `with_header`) is recorded as a `request_id` field on request spans, across the
+  endpoint methods and the task lifecycle.
 
 ## [0.3.0] - 2026-05-25
 
