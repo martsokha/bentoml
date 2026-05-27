@@ -3,6 +3,8 @@
 //! [`Endpoint::submit`]: crate::Endpoint::submit
 
 use std::borrow::Cow;
+use std::future::Future;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use reqwest::Method;
@@ -76,6 +78,43 @@ impl TaskHandle {
         let req = self.request("status", Method::GET)?;
         let info: TaskInfo = self.client.send(req).await?.json().await?;
         Ok(info.status)
+    }
+
+    /// Polls [`status`] until the task reaches a terminal state (completed, failed,
+    /// or canceled), then returns that status.
+    ///
+    /// `sleep(interval)` is awaited between polls; the crate is runtime-agnostic, so
+    /// the caller supplies the delay (with Tokio, pass `tokio::time::sleep`). Returns
+    /// [`Error::Timeout`] if the task is still running after `timeout`. The returned
+    /// status may be non-`Completed` — inspect it before reading the result.
+    ///
+    /// [`status`]: Self::status
+    /// [`Error::Timeout`]: crate::Error::Timeout
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(skip(self, sleep), fields(route = %self.route, task_id = %self.task_id, request_id = self.request_id()), err)
+    )]
+    pub async fn wait<S, F>(
+        &self,
+        timeout: Duration,
+        interval: Duration,
+        mut sleep: S,
+    ) -> Result<TaskStatus>
+    where
+        S: FnMut(Duration) -> F + Send,
+        F: Future<Output = ()> + Send,
+    {
+        let deadline = Instant::now() + timeout;
+        loop {
+            let status = self.status().await?;
+            if status.is_terminal() {
+                return Ok(status);
+            }
+            if Instant::now() >= deadline {
+                return Err(Error::Timeout { timeout });
+            }
+            sleep(interval).await;
+        }
     }
 
     /// Fetches the completed result, deserialized as JSON into `R`.

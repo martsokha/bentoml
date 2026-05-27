@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `@bentoml.task` accepts the same inputs as a regular endpoint).
 - `TaskHandle::bytes` and `TaskHandle::text` read a completed task's result as raw
   bytes (binary/file output) or UTF-8 text, alongside the existing `json`.
+- `TaskHandle::wait` polls until the task reaches a terminal state and returns it,
+  with a caller-supplied sleeper (runtime-agnostic) and a timeout.
 
 ## [0.4.0] - 2026-05-27
 
