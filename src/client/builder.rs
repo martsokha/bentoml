@@ -2,10 +2,8 @@
 
 use std::time::Duration;
 
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-
-use crate::client::Client;
-use crate::error::{Error, Result};
+use crate::client::{Client, Headers};
+use crate::error::Result;
 
 /// The default base URL used when none is configured.
 pub const DEFAULT_BASE_URL: &str = "http://localhost:3000";
@@ -41,7 +39,7 @@ pub struct ClientBuilder {
     token: Option<String>,
     timeout: Option<Duration>,
     max_retries: Option<u32>,
-    headers: Vec<(String, String)>,
+    headers: Headers,
 }
 
 impl ClientBuilder {
@@ -77,13 +75,13 @@ impl ClientBuilder {
 
     /// Adds a custom header sent on every request.
     ///
-    /// May be called multiple times; the name and value are validated when [`build`]
-    /// is called. Note that `Authorization` is managed by [`with_token`].
+    /// May be called multiple times; an invalid name or value is reported when
+    /// [`build`] is called. Note that `Authorization` is managed by [`with_token`].
     ///
     /// [`build`]: Self::build
     /// [`with_token`]: Self::with_token
-    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
-        self.headers.push((name.into(), value.into()));
+    pub fn with_header(mut self, name: impl AsRef<str>, value: impl AsRef<str>) -> Self {
+        self.headers.insert(name, value);
         self
     }
 
@@ -92,7 +90,7 @@ impl ClientBuilder {
     /// Convenience for [`with_header`] with the `User-Agent` name.
     ///
     /// [`with_header`]: Self::with_header
-    pub fn with_user_agent(self, value: impl Into<String>) -> Self {
+    pub fn with_user_agent(self, value: impl AsRef<str>) -> Self {
         self.with_header("user-agent", value)
     }
 
@@ -103,7 +101,7 @@ impl ClientBuilder {
     /// the `Bearer <token>` value for you.
     ///
     /// [`with_token`]: Self::with_token
-    pub fn with_authorization(self, value: impl Into<String>) -> Self {
+    pub fn with_authorization(self, value: impl AsRef<str>) -> Self {
         self.with_header("authorization", value)
     }
 
@@ -115,17 +113,7 @@ impl ClientBuilder {
         let base_url = self.base_url.unwrap_or_else(|| DEFAULT_BASE_URL.to_owned());
         let timeout = self.timeout.unwrap_or(DEFAULT_TIMEOUT);
         let max_retries = self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES);
-
-        let mut headers = HeaderMap::with_capacity(self.headers.len());
-        for (name, value) in self.headers {
-            let name = name
-                .parse::<HeaderName>()
-                .map_err(|e| Error::InvalidHeader(format!("{name:?}: {e}")))?;
-            let value = value
-                .parse::<HeaderValue>()
-                .map_err(|e| Error::InvalidHeader(format!("{name}: {e}")))?;
-            headers.insert(name, value);
-        }
+        let headers = self.headers.into_map()?;
 
         Client::assemble(base_url, self.token, timeout, max_retries, headers)
     }

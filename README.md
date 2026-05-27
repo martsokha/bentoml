@@ -68,16 +68,18 @@ A `Client::endpoint(route)` handle names the route once; calls are made on it. S
 
 A `Client::endpoint(route)` handle covers the BentoML HTTP surface:
 
-- `call`: the generic JSON request.
+- `call`: the common JSON-in, JSON-out request.
+- `call_json` / `call_bytes` / `call_multipart`: send a JSON, raw-binary, or
+  `multipart/form-data` body (built with `Multipart`), returning a `Response` you
+  read as `.json::<R>()`, `.bytes()`, or `.text()` — so input and output encodings
+  are chosen independently.
 - `submit`: async task queues (`@bentoml.task`); returns a `TaskHandle` for
   `status` / `get` / `retry` / `cancel`.
-- `Files` trait: `multipart/form-data` file inputs, raw-binary root inputs, and
-  binary responses.
 - `Streaming` trait: `stream` returns a `ByteStream` of response chunks; decode it
   with `.text()`, `.lines()`, or `.json::<T>()` (feature `stream`).
 
-The `Files` and `Streaming` traits live in the prelude. The `Client` itself provides
-health checks: `is_ready` / `is_live` and `wait_until_ready`.
+The `Streaming` trait lives in the prelude. The `Client` itself provides health
+checks: `is_ready` / `is_live` and `wait_until_ready`.
 
 These are gated by feature flags:
 

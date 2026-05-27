@@ -15,12 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   calls themselves are unchanged.
 - **Breaking:** removed the `Tasks` trait; `submit` is now an inherent method on
   `Endpoint`. Drop the `use bentoml::prelude::Tasks;` import; the call is unchanged.
+- **Breaking:** removed the `Files` trait. Endpoint requests are now inherent methods
+  on `Endpoint` that take the request body and return a `Response`, so input and
+  output encodings are chosen independently: `call_json` / `call_bytes` /
+  `call_multipart` return a `Response` read via `.json::<R>()`, `.bytes()`, or
+  `.text()`. `call(&payload) -> R` remains as the JSON-in/JSON-out shorthand. This
+  closes the previous gaps (e.g. raw-in/bytes-out, multipart-in/bytes-out).
 
 ### Added
 
+- `Response`, returned by the `call_*` methods, with `.json::<R>()`, `.bytes()`, and
+  `.text()` readers.
 - `ByteStream::json::<T>()` yields one deserialized `T` per JSON value, parsing the
   concatenated-JSON wire format BentoML uses for `Generator[Model]` endpoints
   (buffered across chunk boundaries).
+- `Multipart` builder for file/image endpoints: `field` JSON-encodes a parameter into
+  its own form field (matching BentoML's per-parameter encoding) and `part` adds a
+  file part, so callers keep typed values instead of hand-assembling a form.
 
 ## [0.3.0] - 2026-05-25
 

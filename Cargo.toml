@@ -24,7 +24,7 @@ rustls-tls = ["reqwest/rustls"]
 native-tls = ["reqwest/native-tls"]
 
 # Streaming response endpoints (the `Streaming` trait).
-stream = ["dep:futures-core"]
+stream = ["dep:futures-core", "reqwest/stream"]
 # Structured logging and spans over HTTP operations.
 tracing = ["dep:tracing"]
 
@@ -34,7 +34,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # HTTP transport and middleware.
-reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "multipart"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "multipart"] }
 reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
 reqwest-retry = { version = "0.9" }
 

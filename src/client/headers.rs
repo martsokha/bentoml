@@ -49,4 +49,12 @@ impl Headers {
         }
         Ok(req)
     }
+
+    /// Consumes the accumulator into a [`HeaderMap`], or returns the recorded error.
+    pub(crate) fn into_map(self) -> Result<HeaderMap> {
+        match self.error {
+            Some(error) => Err(Error::InvalidHeader(error)),
+            None => Ok(self.map),
+        }
+    }
 }

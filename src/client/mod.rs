@@ -3,13 +3,15 @@
 mod builder;
 mod endpoint;
 mod headers;
+mod multipart;
+mod response;
 
 use std::borrow::Cow;
 use std::future::Future;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use reqwest::Response;
+use reqwest::Response as ReqwestResponse;
 use reqwest_middleware::{
     ClientBuilder as MiddlewareBuilder, ClientWithMiddleware, RequestBuilder,
 };
@@ -20,6 +22,8 @@ use url::Url;
 pub use self::builder::{ClientBuilder, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT};
 pub use self::endpoint::Endpoint;
 pub(crate) use self::headers::Headers;
+pub use self::multipart::Multipart;
+pub use self::response::Response;
 use crate::error::{Error, Result};
 
 /// An async client for a single BentoML service.
@@ -163,7 +167,7 @@ impl Client {
 
     /// Sends a request, mapping any non-success status to [`Error::Service`].
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, err))]
-    pub(crate) async fn send(&self, req: RequestBuilder) -> Result<Response> {
+    pub(crate) async fn send(&self, req: RequestBuilder) -> Result<ReqwestResponse> {
         let resp = req.send().await?;
         let status = resp.status();
         if !status.is_success() {

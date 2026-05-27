@@ -20,6 +20,10 @@ pub enum Error {
     #[error("invalid header: {0}")]
     InvalidHeader(String),
 
+    /// A multipart field could not be serialized, or a part was invalid.
+    #[error("invalid multipart body: {0}")]
+    InvalidMultipart(String),
+
     /// A streamed response chunk could not be decoded (e.g. invalid UTF-8).
     #[error("failed to decode response: {0}")]
     Decode(String),

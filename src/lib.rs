@@ -14,7 +14,6 @@ compile_error!(
 mod client;
 mod error;
 
-pub mod files;
 pub mod task;
 
 #[cfg(feature = "stream")]
@@ -26,5 +25,6 @@ pub mod prelude;
 
 pub use crate::client::{
     Client, ClientBuilder, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, Endpoint,
+    Multipart, Response,
 };
 pub use crate::error::{Error, Result};
