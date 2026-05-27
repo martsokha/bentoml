@@ -3,12 +3,16 @@
 mod builder;
 mod endpoint;
 mod headers;
+mod response;
+
+pub mod multipart;
 
 use std::borrow::Cow;
+use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use reqwest::Response;
+use reqwest::Response as ReqwestResponse;
 use reqwest_middleware::{
     ClientBuilder as MiddlewareBuilder, ClientWithMiddleware, RequestBuilder,
 };
@@ -16,9 +20,10 @@ use reqwest_retry::RetryTransientMiddleware;
 use reqwest_retry::policies::ExponentialBackoff;
 use url::Url;
 
-pub use self::builder::{ClientBuilder, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT};
+pub use self::builder::ClientBuilder;
 pub use self::endpoint::Endpoint;
 pub(crate) use self::headers::Headers;
+pub use self::response::EndpointResponse;
 use crate::error::{Error, Result};
 
 /// An async client for a single BentoML service.
@@ -63,6 +68,53 @@ impl Client {
     /// Accepts a `&'static str` (borrowed without allocating) or an owned `String`.
     pub fn endpoint(&self, route: impl Into<Cow<'static, str>>) -> Endpoint {
         Endpoint::new(self.clone(), route.into())
+    }
+
+    /// Returns whether the service reports itself ready, via `/readyz`.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
+    pub async fn is_ready(&self) -> Result<bool> {
+        self.health("readyz").await
+    }
+
+    /// Returns whether the service reports itself alive, via `/livez`.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
+    pub async fn is_live(&self) -> Result<bool> {
+        self.health("livez").await
+    }
+
+    /// Polls [`is_ready`] until it returns `true` or `timeout` elapses, awaiting
+    /// `sleep(interval)` between attempts.
+    ///
+    /// The crate is runtime-agnostic, so the caller supplies the delay: `sleep` is
+    /// invoked with `interval` and the returned future is awaited. With Tokio, pass
+    /// `tokio::time::sleep`.
+    ///
+    /// Returns [`Error::Timeout`] if the service does not become ready in time.
+    ///
+    /// [`is_ready`]: Self::is_ready
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, sleep), err))]
+    pub async fn wait_until_ready<S, F>(
+        &self,
+        timeout: Duration,
+        interval: Duration,
+        mut sleep: S,
+    ) -> Result<()>
+    where
+        S: FnMut(Duration) -> F + Send,
+        F: Future<Output = ()> + Send,
+    {
+        let deadline = Instant::now() + timeout;
+        loop {
+            // Ignore transient errors (e.g. connection refused during startup);
+            // only the deadline ends the loop.
+            if matches!(self.is_ready().await, Ok(true)) {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err(Error::Timeout { timeout });
+            }
+            sleep(interval).await;
+        }
     }
 
     /// Joins a route onto the base URL, tolerating an optional leading slash.
@@ -115,7 +167,7 @@ impl Client {
 
     /// Sends a request, mapping any non-success status to [`Error::Service`].
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, err))]
-    pub(crate) async fn send(&self, req: RequestBuilder) -> Result<Response> {
+    pub(crate) async fn send(&self, req: RequestBuilder) -> Result<ReqwestResponse> {
         let resp = req.send().await?;
         let status = resp.status();
         if !status.is_success() {
@@ -139,14 +191,15 @@ impl Client {
     pub(crate) fn assemble(
         base_url: String,
         token: Option<String>,
-        timeout: Duration,
+        timeout: Option<Duration>,
         max_retries: u32,
         headers: reqwest::header::HeaderMap,
     ) -> Result<Self> {
-        let inner = reqwest::Client::builder()
-            .timeout(timeout)
-            .default_headers(headers)
-            .build()?;
+        let mut http = reqwest::Client::builder().default_headers(headers);
+        if let Some(timeout) = timeout {
+            http = http.timeout(timeout);
+        }
+        let inner = http.build()?;
 
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(max_retries);
 

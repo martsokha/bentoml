@@ -2,35 +2,44 @@
 
 use std::time::Duration;
 
-use crate::model::TaskStatus;
+use crate::task::TaskStatus;
 
 /// A convenient alias for results returned by this crate.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// A boxed source error, used to preserve the cause chain.
+type Source = Box<dyn std::error::Error + Send + Sync>;
 
 /// The error type returned by client operations.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
-    /// A URL could not be parsed: either the configured base URL, or a route joined
-    /// onto it.
-    #[error("invalid url: {0}")]
-    InvalidUrl(#[from] url::ParseError),
+    /// The request could not be constructed: an unparseable base URL or route, an
+    /// invalid header, or a malformed multipart body.
+    #[error("invalid request: {message}")]
+    InvalidRequest {
+        /// What was invalid.
+        message: String,
+        /// The underlying cause, if any.
+        #[source]
+        source: Option<Source>,
+    },
 
-    /// A custom header name or value was invalid.
-    #[error("invalid header: {0}")]
-    InvalidHeader(String),
+    /// A response could not be decoded (e.g. invalid UTF-8 or malformed JSON in a
+    /// streamed response).
+    #[error("failed to decode response: {message}")]
+    Decode {
+        /// What failed to decode.
+        message: String,
+        /// The underlying cause, if any.
+        #[source]
+        source: Option<Source>,
+    },
 
-    /// A streamed response chunk could not be decoded (e.g. invalid UTF-8).
-    #[error("failed to decode response: {0}")]
-    Decode(String),
-
-    /// An error occurred while performing the HTTP request.
+    /// The HTTP request failed: connection, timeout, retries exhausted, or the
+    /// client could not be built.
     #[error("http transport error: {0}")]
-    Transport(#[from] reqwest::Error),
-
-    /// An error occurred in the request middleware stack (e.g. retries).
-    #[error("http middleware error: {0}")]
-    Middleware(#[from] reqwest_middleware::Error),
+    Transport(#[from] reqwest_middleware::Error),
 
     /// The service did not become ready within the configured timeout.
     #[error("timed out after {timeout:?} waiting for the service")]
@@ -75,8 +84,54 @@ struct ErrorEnvelope {
 }
 
 impl Error {
-    /// Builds a [`Error::Service`] from a status code and raw response body,
-    /// parsing BentoML's `{"error", "detail"}` envelope when the body is one.
+    /// The HTTP status code, if this error carries one (a [`Service`] response, or a
+    /// transport error generated from a response).
+    ///
+    /// [`Service`]: Error::Service
+    pub fn status(&self) -> Option<u16> {
+        match self {
+            Self::Service { status, .. } => Some(*status),
+            Self::Transport(e) => e.status().map(|s| s.as_u16()),
+            _ => None,
+        }
+    }
+
+    /// An `InvalidRequest` error with a message and a source cause.
+    pub(crate) fn invalid_request(message: impl Into<String>, source: impl Into<Source>) -> Self {
+        Self::InvalidRequest {
+            message: message.into(),
+            source: Some(source.into()),
+        }
+    }
+
+    /// An `InvalidRequest` error with just a message.
+    pub(crate) fn invalid_message(message: impl Into<String>) -> Self {
+        Self::InvalidRequest {
+            message: message.into(),
+            source: None,
+        }
+    }
+
+    /// A `Decode` error with a message and a source cause.
+    #[cfg(feature = "stream")]
+    pub(crate) fn decode(message: impl Into<String>, source: impl Into<Source>) -> Self {
+        Self::Decode {
+            message: message.into(),
+            source: Some(source.into()),
+        }
+    }
+
+    /// A `Decode` error with just a message.
+    #[cfg(feature = "stream")]
+    pub(crate) fn decode_message(message: impl Into<String>) -> Self {
+        Self::Decode {
+            message: message.into(),
+            source: None,
+        }
+    }
+
+    /// Builds a `Service` error from a status code and raw response body, parsing
+    /// BentoML's `{"error", "detail"}` envelope when the body is one.
     pub(crate) fn service(status: u16, body: &str) -> Self {
         match serde_json::from_str::<ErrorEnvelope>(body) {
             Ok(env) => Self::Service {
@@ -91,5 +146,19 @@ impl Error {
                 detail: None,
             },
         }
+    }
+}
+
+/// Converts a URL parse error into an [`Error::InvalidRequest`].
+impl From<url::ParseError> for Error {
+    fn from(e: url::ParseError) -> Self {
+        Self::invalid_request("invalid url", e)
+    }
+}
+
+/// Converts a client-build error into an [`Error::Transport`].
+impl From<reqwest::Error> for Error {
+    fn from(e: reqwest::Error) -> Self {
+        Self::Transport(e.into())
     }
 }

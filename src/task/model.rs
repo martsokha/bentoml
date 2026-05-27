@@ -19,7 +19,7 @@ pub enum TaskStatus {
     InProgress,
     /// Finished successfully; the result is available via [`TaskHandle::get`].
     ///
-    /// [`TaskHandle::get`]: crate::service::TaskHandle::get
+    /// [`TaskHandle::get`]: crate::task::TaskHandle::get
     #[serde(rename = "completed")]
     Completed,
     /// Finished with an error.

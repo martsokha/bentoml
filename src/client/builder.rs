@@ -2,24 +2,13 @@
 
 use std::time::Duration;
 
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-
-use crate::client::Client;
-use crate::error::{Error, Result};
-
-/// The default base URL used when none is configured.
-pub const DEFAULT_BASE_URL: &str = "http://localhost:3000";
-
-/// The default request timeout applied when none is configured.
-pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
-
-/// The default number of retries for transient request failures.
-pub const DEFAULT_MAX_RETRIES: u32 = 3;
+use crate::client::{Client, Headers};
+use crate::error::Result;
 
 /// A builder for [`Client`].
 ///
-/// Obtain one via [`Client::builder`]. Each unset field falls back to its
-/// `DEFAULT_*` constant.
+/// Obtain one via [`Client::builder`]. Each unset field falls back to a default,
+/// noted on the corresponding setter.
 ///
 /// ```no_run
 /// use bentoml::prelude::*;
@@ -41,13 +30,19 @@ pub struct ClientBuilder {
     token: Option<String>,
     timeout: Option<Duration>,
     max_retries: Option<u32>,
-    headers: Vec<(String, String)>,
+    headers: Headers,
 }
 
 impl ClientBuilder {
+    /// The base URL used when none is configured.
+    const DEFAULT_BASE_URL: &str = "http://localhost:3000";
+    /// The number of retries for transient failures used when none is configured.
+    const DEFAULT_MAX_RETRIES: u32 = 3;
+
     /// Sets the base URL of the BentoML service, e.g. `http://localhost:3000`.
     ///
-    /// Defaults to [`DEFAULT_BASE_URL`]. The URL is parsed when [`build`] is called.
+    /// Defaults to `http://localhost:3000`. The URL is parsed when [`build`] is
+    /// called.
     ///
     /// [`build`]: Self::build
     pub fn with_base_url(mut self, base_url: impl Into<String>) -> Self {
@@ -61,15 +56,15 @@ impl ClientBuilder {
         self
     }
 
-    /// Sets the per-request timeout. Defaults to [`DEFAULT_TIMEOUT`].
+    /// Sets the per-request timeout. Unset by default (no timeout), matching
+    /// reqwest; suited to long-running inference, tasks, and streaming.
     pub fn with_timeout(mut self, timeout: impl Into<Duration>) -> Self {
         self.timeout = Some(timeout.into());
         self
     }
 
     /// Sets the maximum number of times a transient request failure is retried with
-    /// exponential backoff. Defaults to [`DEFAULT_MAX_RETRIES`]; set to `0` to
-    /// disable retries.
+    /// exponential backoff. Defaults to `3`; set to `0` to disable retries.
     pub fn with_max_retries(mut self, max_retries: impl Into<u32>) -> Self {
         self.max_retries = Some(max_retries.into());
         self
@@ -77,13 +72,13 @@ impl ClientBuilder {
 
     /// Adds a custom header sent on every request.
     ///
-    /// May be called multiple times; the name and value are validated when [`build`]
-    /// is called. Note that `Authorization` is managed by [`with_token`].
+    /// May be called multiple times; an invalid name or value is reported when
+    /// [`build`] is called. Note that `Authorization` is managed by [`with_token`].
     ///
     /// [`build`]: Self::build
     /// [`with_token`]: Self::with_token
-    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
-        self.headers.push((name.into(), value.into()));
+    pub fn with_header(mut self, name: impl AsRef<str>, value: impl AsRef<str>) -> Self {
+        self.headers.insert(name, value);
         self
     }
 
@@ -92,7 +87,7 @@ impl ClientBuilder {
     /// Convenience for [`with_header`] with the `User-Agent` name.
     ///
     /// [`with_header`]: Self::with_header
-    pub fn with_user_agent(self, value: impl Into<String>) -> Self {
+    pub fn with_user_agent(self, value: impl AsRef<str>) -> Self {
         self.with_header("user-agent", value)
     }
 
@@ -103,7 +98,7 @@ impl ClientBuilder {
     /// the `Bearer <token>` value for you.
     ///
     /// [`with_token`]: Self::with_token
-    pub fn with_authorization(self, value: impl Into<String>) -> Self {
+    pub fn with_authorization(self, value: impl AsRef<str>) -> Self {
         self.with_header("authorization", value)
     }
 
@@ -112,21 +107,12 @@ impl ClientBuilder {
     /// Returns an error if the configured base URL cannot be parsed, a custom header
     /// is invalid, or the HTTP client cannot be constructed.
     pub fn build(self) -> Result<Client> {
-        let base_url = self.base_url.unwrap_or_else(|| DEFAULT_BASE_URL.to_owned());
-        let timeout = self.timeout.unwrap_or(DEFAULT_TIMEOUT);
-        let max_retries = self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES);
+        let base_url = self
+            .base_url
+            .unwrap_or_else(|| Self::DEFAULT_BASE_URL.to_owned());
+        let max_retries = self.max_retries.unwrap_or(Self::DEFAULT_MAX_RETRIES);
+        let headers = self.headers.into_map()?;
 
-        let mut headers = HeaderMap::with_capacity(self.headers.len());
-        for (name, value) in self.headers {
-            let name = name
-                .parse::<HeaderName>()
-                .map_err(|e| Error::InvalidHeader(format!("{name:?}: {e}")))?;
-            let value = value
-                .parse::<HeaderValue>()
-                .map_err(|e| Error::InvalidHeader(format!("{name}: {e}")))?;
-            headers.insert(name, value);
-        }
-
-        Client::assemble(base_url, self.token, timeout, max_retries, headers)
+        Client::assemble(base_url, self.token, self.timeout, max_retries, headers)
     }
 }

@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** removed the `Readiness` trait; `is_ready`, `is_live`, and
+  `wait_until_ready` are now inherent methods on `Client`. Drop the
+  `use bentoml::prelude::Readiness;` import (or the prelude glob covers it); the
+  calls themselves are unchanged.
+- **Breaking:** removed the `Tasks` trait; `submit` is now an inherent method on
+  `Endpoint`. Drop the `use bentoml::prelude::Tasks;` import; the call is unchanged.
+- **Breaking:** removed the `Streaming` trait; `stream` is now an inherent method on
+  `Endpoint` (behind the `stream` feature). Drop the `use bentoml::prelude::Streaming;`
+  import; the call is unchanged.
+- **Breaking:** consolidated the `Error` enum (9 → 6 variants): `InvalidUrl`,
+  `InvalidHeader`, and `InvalidMultipart` fold into one `InvalidRequest`, and the
+  build-time `reqwest::Error` now maps into `Transport` (the former `Middleware`
+  variant is gone — `Transport` covers all network/transport failures). Added
+  `Error::status() -> Option<u16>`; `InvalidRequest`/`Decode` now carry a source for
+  error-chain reporting.
+- **Breaking:** removed the `Files` trait. Endpoint requests are now inherent methods
+  on `Endpoint` that take the request body and return an `EndpointResponse`, so input
+  and output encodings are chosen independently: `call_json` / `call_bytes` /
+  `call_multipart` return an `EndpointResponse` read via `.json::<R>()`, `.bytes()`,
+  or `.text()`. `call(&payload) -> R` remains as the JSON-in/JSON-out shorthand. This
+  closes the previous gaps (e.g. raw-in/bytes-out, multipart-in/bytes-out).
+- **Breaking:** the per-request timeout now defaults to none (matching reqwest),
+  rather than 30s, so long-running inference, tasks, and streaming aren't cut off.
+  Set one with `ClientBuilder::with_timeout`.
+- **Breaking:** removed the public `DEFAULT_BASE_URL`, `DEFAULT_TIMEOUT`, and
+  `DEFAULT_MAX_RETRIES` constants; the defaults are now documented on the
+  corresponding `ClientBuilder` setters.
+
+### Added
+
+- `EndpointResponse`, returned by the `call_*` methods, with `.json::<R>()`,
+  `.bytes()`, `.text()`, `.status()`, and `.into_inner()`.
+- `ByteStream::json::<T>()` yields one deserialized `T` per JSON value, parsing the
+  concatenated-JSON wire format BentoML uses for `Generator[Model]` endpoints
+  (buffered across chunk boundaries).
+- A `multipart` module: the `Multipart` builder (`field` JSON-encodes a parameter
+  into its own form field, matching BentoML's per-parameter encoding) and `Part`
+  (bytes plus optional file name and MIME type), so callers keep typed values instead
+  of hand-assembling a form.
+- With the `tracing` feature, a caller-set `x-request-id` (via `with_request_id` or
+  `with_header`) is recorded as a `request_id` field on request spans, across the
+  endpoint methods and the task lifecycle.
+
 ## [0.3.0] - 2026-05-25
 
 ### Changed

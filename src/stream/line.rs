@@ -1,4 +1,4 @@
-//! Decoders that adapt a raw [`ByteStream`] into higher-level streams.
+//! The [`LineStream`] decoder.
 
 use std::collections::VecDeque;
 use std::pin::Pin;
@@ -8,32 +8,6 @@ use futures_core::Stream;
 
 use super::ByteStream;
 use crate::error::{Error, Result};
-
-/// A [`Stream`] that decodes [`ByteStream`] chunks as UTF-8 [`String`]s.
-#[derive(Debug)]
-pub struct TextStream {
-    inner: ByteStream,
-}
-
-impl TextStream {
-    pub(super) fn new(inner: ByteStream) -> Self {
-        Self { inner }
-    }
-}
-
-impl Stream for TextStream {
-    type Item = Result<String>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.inner).poll_next(cx).map(|opt| {
-            opt.map(|res| {
-                let bytes = res?;
-                String::from_utf8(bytes.to_vec())
-                    .map_err(|e| Error::Decode(format!("invalid utf-8 chunk: {e}")))
-            })
-        })
-    }
-}
 
 /// A [`Stream`] that yields newline-delimited lines from a [`ByteStream`].
 #[derive(Debug)]
@@ -62,8 +36,8 @@ impl LineStream {
             if line.last() == Some(&b'\r') {
                 line.pop();
             }
-            let line = String::from_utf8(line)
-                .map_err(|e| Error::Decode(format!("invalid utf-8 line: {e}")))?;
+            let line =
+                String::from_utf8(line).map_err(|e| Error::decode("invalid utf-8 line", e))?;
             self.ready.push_back(line);
         }
         Ok(())
@@ -86,9 +60,7 @@ impl Stream for LineStream {
                 let rest = std::mem::take(&mut self.buf);
                 return match String::from_utf8(rest) {
                     Ok(s) => Poll::Ready(Some(Ok(s))),
-                    Err(e) => {
-                        Poll::Ready(Some(Err(Error::Decode(format!("invalid utf-8 line: {e}")))))
-                    }
+                    Err(e) => Poll::Ready(Some(Err(Error::decode("invalid utf-8 line", e)))),
                 };
             }
 

@@ -6,32 +6,23 @@
 //! task with a `task_id` query parameter.
 
 mod handle;
-
-use std::future::Future;
+mod model;
 
 use serde::Serialize;
 
 pub use self::handle::TaskHandle;
+pub use self::model::{TaskInfo, TaskStatus};
 use crate::client::Endpoint;
 use crate::error::Result;
-use crate::model::TaskInfo;
 
-/// Async task-queue operations against a BentoML service.
-///
-/// Implemented for [`Endpoint`]. [`submit`] returns a [`TaskHandle`] that carries the
-/// id-based operations (`status`, `get`, `retry`, `cancel`).
-///
-/// [`submit`]: Tasks::submit
-pub trait Tasks {
-    /// Submits the endpoint as a task, returning a [`TaskHandle`] for tracking it.
-    fn submit<T>(&self, payload: &T) -> impl Future<Output = Result<TaskHandle>> + Send
-    where
-        T: Serialize + ?Sized + Sync;
-}
-
-impl Tasks for Endpoint {
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route()), err))]
-    async fn submit<T>(&self, payload: &T) -> Result<TaskHandle>
+impl Endpoint {
+    /// Submits the endpoint as a task (`@bentoml.task`), returning a [`TaskHandle`]
+    /// for tracking it.
+    ///
+    /// The handle carries the id-based operations (`status`, `get`, `retry`,
+    /// `cancel`).
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route(), request_id = self.request_id()), err))]
+    pub async fn submit<T>(&self, payload: &T) -> Result<TaskHandle>
     where
         T: Serialize + ?Sized + Sync,
     {

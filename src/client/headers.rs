@@ -39,14 +39,28 @@ impl Headers {
         }
     }
 
+    /// The `x-request-id` header value, if one has been set, for span correlation.
+    #[cfg(feature = "tracing")]
+    pub(crate) fn request_id(&self) -> Option<&str> {
+        self.map.get("x-request-id").and_then(|v| v.to_str().ok())
+    }
+
     /// Applies the accumulated headers to `req`, or returns the recorded parse error.
     pub(crate) fn apply(&self, mut req: RequestBuilder) -> Result<RequestBuilder> {
         if let Some(error) = &self.error {
-            return Err(Error::InvalidHeader(error.clone()));
+            return Err(Error::invalid_message(format!("invalid header {error}")));
         }
         for (name, value) in &self.map {
             req = req.header(name.clone(), value.clone());
         }
         Ok(req)
+    }
+
+    /// Consumes the accumulator into a [`HeaderMap`], or returns the recorded error.
+    pub(crate) fn into_map(self) -> Result<HeaderMap> {
+        match self.error {
+            Some(error) => Err(Error::invalid_message(format!("invalid header {error}"))),
+            None => Ok(self.map),
+        }
     }
 }

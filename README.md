@@ -8,19 +8,20 @@ An unofficial async Rust client for [BentoML] services ([GitHub][bentoml-gh]).
 
 BentoML services expose their `@bentoml.api` methods as HTTP `POST` endpoints whose
 route is derived from the method name. Because endpoints are defined dynamically
-per-service, this crate doesn't generate typed bindings: instead it offers a generic
-`call` over `serde` types, plus extension traits for the rest of the HTTP surface.
+per-service, this crate doesn't generate typed bindings: instead you name a route
+with `client.endpoint(route)` and call it over your own `serde` types.
 
 ## Features
 
-- **Generic calls**: invoke any endpoint with `call(route, payload)` over your own
-  `serde` request and response types, with no codegen or per-service bindings.
+- **Typed calls**: `endpoint(route).call(&payload)` over your own `serde` request and
+  response types, with no codegen or per-service bindings.
 - **Async task queues**: submit `@bentoml.task` jobs and poll status, fetch results,
   retry, or cancel through a `TaskHandle`.
 - **File and streaming I/O**: `multipart/form-data` file inputs, raw-binary root
   inputs, binary responses, and chunked streaming endpoints (feature `stream`).
-- **Resilient transport**: per-request timeouts and exponential-backoff retries via
-  `reqwest-middleware`, bearer-token auth, and a cheap-to-clone `Arc`-backed client.
+- **Resilient transport**: exponential-backoff retries via `reqwest-middleware`,
+  bearer-token auth, an optional per-request timeout, and a cheap-to-clone
+  `Arc`-backed client.
 
 ## Usage
 
@@ -28,7 +29,7 @@ Add the dependency:
 
 ```toml
 [dependencies]
-bentoml = "0.1"
+bentoml = "0.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -66,24 +67,28 @@ A `Client::endpoint(route)` handle names the route once; calls are made on it. S
 
 ## Capabilities
 
-A `Client::endpoint(route)` handle implements a set of extension traits (all in the
-prelude) covering the BentoML HTTP surface:
+A `Client::endpoint(route)` handle covers the BentoML HTTP surface:
 
-- `Tasks`: async task queues (`@bentoml.task`); `submit` returns a `TaskHandle`
-  for `status` / `get` / `retry` / `cancel`.
-- `Files`: `multipart/form-data` file inputs, raw-binary root inputs, and binary
-  responses.
-- `Streaming`: `stream` returns a `Stream` of response chunks (feature `stream`).
+- `call`: the common JSON-in, JSON-out request.
+- `call_json` / `call_bytes` / `call_multipart`: send a JSON, raw-binary, or
+  `multipart/form-data` body (built with `multipart::Multipart`), returning an
+  `EndpointResponse` you read as `.json::<R>()`, `.bytes()`, or `.text()` — so input
+  and output encodings are chosen independently.
+- `submit`: async task queues (`@bentoml.task`); returns a `TaskHandle` for
+  `status` / `get` / `retry` / `cancel`.
+- `stream` (feature `stream`): returns a `ByteStream` of response chunks; decode it
+  with `.text()`, `.lines()`, or `.json::<T>()`.
 
-The `Client` itself provides `Readiness`: `is_ready` / `is_live` health checks and
+The `Client` itself provides health checks: `is_ready` / `is_live` and
 `wait_until_ready`.
 
 These are gated by feature flags:
 
 - `rustls-tls` *(default)*: HTTPS via Rustls.
 - `native-tls`: HTTPS via the platform-native TLS stack.
-- `stream`: streaming response endpoints (`Streaming`).
-- `tracing`: `#[tracing::instrument]` on request methods.
+- `stream`: streaming response endpoints (`Endpoint::stream`).
+- `tracing`: `#[tracing::instrument]` spans on request methods, including any
+  `x-request-id` as a `request_id` field.
 
 ## Changelog
 

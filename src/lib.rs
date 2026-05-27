@@ -14,13 +14,14 @@ compile_error!(
 mod client;
 mod error;
 
-pub mod model;
-pub mod service;
+pub mod task;
+
+#[cfg(feature = "stream")]
+#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+pub mod stream;
 
 #[doc(hidden)]
 pub mod prelude;
 
-pub use crate::client::{
-    Client, ClientBuilder, DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, Endpoint,
-};
+pub use crate::client::{Client, ClientBuilder, Endpoint, EndpointResponse, multipart};
 pub use crate::error::{Error, Result};

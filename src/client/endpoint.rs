@@ -2,19 +2,21 @@
 
 use std::borrow::Cow;
 
+use bytes::Bytes;
 use reqwest_middleware::RequestBuilder;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::client::{Client, Headers};
+use crate::client::multipart::Multipart;
+use crate::client::{Client, EndpointResponse, Headers};
 use crate::error::Result;
 
 /// A handle to a single service endpoint, pairing a route with its [`Client`].
 ///
 /// Obtain one with [`Client::endpoint`]. The route is named once; calls are made on
-/// the handle rather than passing the route to each method. Beyond the generic
-/// [`call`], the capability traits ([`Tasks`], [`Files`], and `Streaming`) are
-/// implemented for `Endpoint`.
+/// the handle rather than passing the route to each method. It carries the generic
+/// [`call`], the body-specific `call_json` / `call_bytes` / `call_multipart`, async
+/// task queues ([`submit`]), and (behind the `stream` feature) `stream`.
 ///
 /// Per-call headers are attached with [`with_header`]: build a fresh handle per
 /// request when they vary.
@@ -37,9 +39,8 @@ use crate::error::Result;
 /// ```
 ///
 /// [`call`]: Endpoint::call
+/// [`submit`]: Endpoint::submit
 /// [`with_header`]: Endpoint::with_header
-/// [`Tasks`]: crate::service::Tasks
-/// [`Files`]: crate::service::Files
 #[derive(Debug, Clone)]
 pub struct Endpoint {
     client: Client,
@@ -59,6 +60,12 @@ impl Endpoint {
     /// This endpoint's route.
     pub fn route(&self) -> &str {
         &self.route
+    }
+
+    /// The `x-request-id` set on this handle, if any. Used to enrich tracing spans.
+    #[cfg(feature = "tracing")]
+    pub(crate) fn request_id(&self) -> Option<&str> {
+        self.headers.request_id()
     }
 
     /// Adds a header sent with every request made through this handle.
@@ -97,18 +104,49 @@ impl Endpoint {
     }
 
     /// Invokes the endpoint with the given JSON `payload`, returning the deserialized
-    /// response.
+    /// JSON response.
     ///
-    /// BentoML endpoints are `POST` by default.
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route), err))]
+    /// This is the common JSON-in, JSON-out case, shorthand for
+    /// `call_json(payload).await?.json().await`. For other response encodings, use
+    /// [`call_json`] and read the [`EndpointResponse`] as you like. BentoML endpoints are
+    /// `POST` by default.
+    ///
+    /// [`call_json`]: Self::call_json
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route, request_id = self.request_id()), err))]
     pub async fn call<T, R>(&self, payload: &T) -> Result<R>
     where
         T: Serialize + ?Sized,
         R: DeserializeOwned,
     {
+        self.call_json(payload).await?.json().await
+    }
+
+    /// Invokes the endpoint with the given JSON `payload`, returning the raw
+    /// [`EndpointResponse`] to read as JSON, bytes, or text.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route, request_id = self.request_id()), err))]
+    pub async fn call_json<T>(&self, payload: &T) -> Result<EndpointResponse>
+    where
+        T: Serialize + ?Sized,
+    {
         let req = self.request(self.route())?.json(payload);
-        let resp = self.client.send(req).await?;
-        Ok(resp.json::<R>().await?)
+        Ok(EndpointResponse::new(self.client.send(req).await?))
+    }
+
+    /// Invokes the endpoint with a raw byte body, for endpoints that take a single
+    /// positional binary ("root") input. Returns the raw [`EndpointResponse`].
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.route, request_id = self.request_id()), err))]
+    pub async fn call_bytes(&self, body: impl Into<Bytes>) -> Result<EndpointResponse> {
+        let req = self.request(self.route())?.body(body.into());
+        Ok(EndpointResponse::new(self.client.send(req).await?))
+    }
+
+    /// Invokes the endpoint with a `multipart/form-data` body, for endpoints that
+    /// take file or image inputs. Build the body with [`Multipart`]. Returns the raw
+    /// [`EndpointResponse`].
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.route, request_id = self.request_id()), err))]
+    pub async fn call_multipart(&self, body: Multipart) -> Result<EndpointResponse> {
+        let req = self.request(self.route())?.multipart(body.into_form()?);
+        Ok(EndpointResponse::new(self.client.send(req).await?))
     }
 
     /// The client this endpoint belongs to.
