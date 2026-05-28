@@ -30,11 +30,13 @@ use crate::error::{Error, Result};
 /// An async client for a single BentoML service.
 ///
 /// Construct one with [`Client::builder`], then invoke service endpoints through an
-/// [`Endpoint`] handle from [`Client::endpoint`]. The client is cheap to clone:
-/// internally it is an [`Arc`] around shared state, so clones share one connection
-/// pool. Requests pass through a [`reqwest-middleware`] stack that applies a
+/// [`Endpoint`] handle from [`Client::endpoint`] (synchronous `@bentoml.api`) or a
+/// [`TaskEndpoint`] from [`Client::task`] (async `@bentoml.task`). The client is cheap
+/// to clone: internally it is an [`Arc`] around shared state, so clones share one
+/// connection pool. Requests pass through a [`reqwest-middleware`] stack that applies a
 /// per-request timeout and retries transient failures with exponential backoff.
 ///
+/// [`TaskEndpoint`]: crate::task::TaskEndpoint
 /// [`reqwest-middleware`]: https://docs.rs/reqwest-middleware
 #[derive(Debug, Clone)]
 pub struct Client {

@@ -1,6 +1,6 @@
-//! The [`TaskHandle`] returned by [`Endpoint::submit`].
+//! The [`TaskHandle`] returned by [`TaskEndpoint::submit`].
 //!
-//! [`Endpoint::submit`]: crate::Endpoint::submit
+//! [`TaskEndpoint::submit`]: crate::task::TaskEndpoint::submit
 
 use std::borrow::Cow;
 use std::future::Future;
@@ -18,10 +18,10 @@ use crate::error::{Error, Result};
 
 /// A handle to a submitted task, pairing its id with the client that created it.
 ///
-/// Carries the per-call headers from the [`Endpoint`] that submitted it, so they
+/// Carries the per-call headers from the [`TaskEndpoint`] that submitted it, so they
 /// apply to every status/result/retry/cancel request too.
 ///
-/// [`Endpoint`]: crate::Endpoint
+/// [`TaskEndpoint`]: crate::task::TaskEndpoint
 #[derive(Debug, Clone)]
 pub struct TaskHandle {
     client: Client,
