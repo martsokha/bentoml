@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** split the endpoint handle by decorator kind. `Client::endpoint`
+  returns an `Endpoint` carrying only the synchronous surface (`call` / `invoke` /
+  `call_bytes` / `call_multipart`); the new `Client::task` returns a `TaskEndpoint`
+  carrying only the task surface (`submit` / `submit_bytes` / `submit_multipart`). The
+  `submit*` methods move off `Endpoint`, so `call` and `submit` can no longer be mixed
+  on one handle. Update `client.endpoint("generate").submit(&p)` to
+  `client.task("generate").submit(&p)`.
 - **Breaking:** renamed `EndpointResponse` to `EndpointReply`.
 - **Breaking:** `Endpoint::call` now returns an `EndpointReply` (read it as `.json::<R>()` /
   `.bytes()` / `.text()`) instead of deserializing to `R` directly. The old
