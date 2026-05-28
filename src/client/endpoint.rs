@@ -1,4 +1,7 @@
-//! The [`Endpoint`] handle.
+//! The [`Endpoint`] handle and the shared [`EndpointBase`] behind it and
+//! [`TaskEndpoint`].
+//!
+//! [`TaskEndpoint`]: crate::task::TaskEndpoint
 
 use std::borrow::Cow;
 
@@ -11,12 +14,77 @@ use crate::client::multipart::Multipart;
 use crate::client::{Client, EndpointReply, Headers};
 use crate::error::Result;
 
-/// A handle to a single service endpoint, pairing a route with its [`Client`].
+/// State and plumbing shared by [`Endpoint`] and [`TaskEndpoint`]: the route, the
+/// client, the per-call headers, and the request builder both kinds route through.
+///
+/// [`TaskEndpoint`]: crate::task::TaskEndpoint
+#[derive(Debug, Clone)]
+pub(crate) struct EndpointBase {
+    client: Client,
+    route: Cow<'static, str>,
+    headers: Headers,
+}
+
+impl EndpointBase {
+    pub(crate) fn new(client: Client, route: Cow<'static, str>) -> Self {
+        Self {
+            client,
+            route,
+            headers: Headers::default(),
+        }
+    }
+
+    /// This endpoint's route.
+    pub(crate) fn route(&self) -> &str {
+        &self.route
+    }
+
+    /// The `x-request-id` set on this handle, if any. Used to enrich tracing spans.
+    #[cfg(feature = "tracing")]
+    pub(crate) fn request_id(&self) -> Option<&str> {
+        self.headers.request_id()
+    }
+
+    /// Records a header sent with every request made through this handle.
+    pub(crate) fn insert_header(&mut self, name: impl AsRef<str>, value: impl AsRef<str>) {
+        self.headers.insert(name, value);
+    }
+
+    /// The client this endpoint belongs to.
+    pub(crate) fn client(&self) -> &Client {
+        &self.client
+    }
+
+    /// Clones this endpoint's route for handing to a [`TaskHandle`].
+    ///
+    /// [`TaskHandle`]: crate::task::TaskHandle
+    pub(crate) fn route_cow(&self) -> Cow<'static, str> {
+        self.route.clone()
+    }
+
+    /// This endpoint's per-call headers, for propagating to a [`TaskHandle`].
+    ///
+    /// [`TaskHandle`]: crate::task::TaskHandle
+    pub(crate) fn headers(&self) -> &Headers {
+        &self.headers
+    }
+
+    /// Begins a `POST` request to `route` with the bearer token and this endpoint's
+    /// headers applied. The kind-specific request methods route through here so
+    /// per-endpoint headers cover every operation.
+    pub(crate) fn request(&self, route: &str) -> Result<RequestBuilder> {
+        self.headers.apply(self.client.post(route)?)
+    }
+}
+
+/// A handle to a synchronous service endpoint (`@bentoml.api`), pairing a route with
+/// its [`Client`].
 ///
 /// Obtain one with [`Client::endpoint`]. The route is named once; calls are made on
 /// the handle rather than passing the route to each method. The body-specific
-/// [`call`] / `call_bytes` / `call_multipart` each return an [`EndpointReply`];
-/// async task queues use [`submit`] (and `submit_bytes` / `submit_multipart`).
+/// [`call`] / `call_bytes` / `call_multipart` each return an [`EndpointReply`]; for
+/// the common JSON-in, JSON-out case [`invoke`] deserializes in one step. Async task
+/// queues (`@bentoml.task`) use [`TaskEndpoint`] from [`Client::task`] instead.
 ///
 /// Per-call headers are attached with [`with_header`]: build a fresh handle per
 /// request when they vary.
@@ -39,33 +107,24 @@ use crate::error::Result;
 /// ```
 ///
 /// [`call`]: Endpoint::call
-/// [`submit`]: Endpoint::submit
+/// [`invoke`]: Endpoint::invoke
 /// [`with_header`]: Endpoint::with_header
+/// [`TaskEndpoint`]: crate::task::TaskEndpoint
 #[derive(Debug, Clone)]
 pub struct Endpoint {
-    client: Client,
-    route: Cow<'static, str>,
-    headers: Headers,
+    base: EndpointBase,
 }
 
 impl Endpoint {
     pub(crate) fn new(client: Client, route: Cow<'static, str>) -> Self {
         Self {
-            client,
-            route,
-            headers: Headers::default(),
+            base: EndpointBase::new(client, route),
         }
     }
 
     /// This endpoint's route.
     pub fn route(&self) -> &str {
-        &self.route
-    }
-
-    /// The `x-request-id` set on this handle, if any. Used to enrich tracing spans.
-    #[cfg(feature = "tracing")]
-    pub(crate) fn request_id(&self) -> Option<&str> {
-        self.headers.request_id()
+        self.base.route()
     }
 
     /// Adds a header sent with every request made through this handle.
@@ -76,19 +135,19 @@ impl Endpoint {
     ///
     /// [`ClientBuilder::with_header`]: crate::ClientBuilder::with_header
     pub fn with_header(mut self, name: impl AsRef<str>, value: impl AsRef<str>) -> Self {
-        self.headers.insert(name, value);
+        self.base.insert_header(name, value);
         self
     }
 
     /// Adds several headers sent with every request made through this handle.
-    pub fn with_headers<K, V, I>(mut self, headers: I) -> Self
+    pub fn with_headers<N, V, I>(mut self, headers: I) -> Self
     where
-        K: AsRef<str>,
+        N: AsRef<str>,
         V: AsRef<str>,
-        I: IntoIterator<Item = (K, V)>,
+        I: IntoIterator<Item = (N, V)>,
     {
         for (name, value) in headers {
-            self.headers.insert(name, value);
+            self.base.insert_header(name, value);
         }
         self
     }
@@ -102,9 +161,7 @@ impl Endpoint {
     pub fn with_request_id(self, id: impl AsRef<str>) -> Self {
         self.with_header("x-request-id", id)
     }
-}
 
-impl Endpoint {
     /// Invokes the endpoint with the given JSON `payload`, returning the raw
     /// [`EndpointReply`] to read as `.json::<R>()`, `.bytes()`, or `.text()`.
     ///
@@ -112,13 +169,13 @@ impl Endpoint {
     /// case, [`invoke`] deserializes the response in one step.
     ///
     /// [`invoke`]: Self::invoke
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route, request_id = self.request_id()), err))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
     pub async fn call<T>(&self, payload: &T) -> Result<EndpointReply>
     where
         T: Serialize + ?Sized,
     {
-        let req = self.request(self.route())?.json(payload);
-        Ok(EndpointReply::new(self.client.send(req).await?))
+        let req = self.base.request(self.base.route())?.json(payload);
+        Ok(EndpointReply::new(self.base.client().send(req).await?))
     }
 
     /// Invokes the endpoint with a JSON `payload` and deserializes the JSON response
@@ -138,40 +195,21 @@ impl Endpoint {
 
     /// Invokes the endpoint with a raw byte body, for endpoints that take a single
     /// positional binary ("root") input. Returns the raw [`EndpointReply`].
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.route, request_id = self.request_id()), err))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
     pub async fn call_bytes(&self, body: impl Into<Bytes>) -> Result<EndpointReply> {
-        let req = self.request(self.route())?.body(body.into());
-        Ok(EndpointReply::new(self.client.send(req).await?))
+        let req = self.base.request(self.base.route())?.body(body.into());
+        Ok(EndpointReply::new(self.base.client().send(req).await?))
     }
 
     /// Invokes the endpoint with a `multipart/form-data` body, for endpoints that
     /// take file or image inputs. Build the body with [`Multipart`]. Returns the raw
     /// [`EndpointReply`].
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.route, request_id = self.request_id()), err))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
     pub async fn call_multipart(&self, body: Multipart) -> Result<EndpointReply> {
-        let req = self.request(self.route())?.multipart(body.into_form()?);
-        Ok(EndpointReply::new(self.client.send(req).await?))
-    }
-
-    /// The client this endpoint belongs to.
-    pub(crate) fn client(&self) -> &Client {
-        &self.client
-    }
-
-    /// Clones this endpoint's route for handing to a [`TaskHandle`].
-    pub(crate) fn route_cow(&self) -> Cow<'static, str> {
-        self.route.clone()
-    }
-
-    /// This endpoint's per-call headers, for propagating to a [`TaskHandle`].
-    pub(crate) fn headers(&self) -> &Headers {
-        &self.headers
-    }
-
-    /// Begins a `POST` request to `route` with the bearer token and this endpoint's
-    /// headers applied. The capability traits route through here so per-endpoint
-    /// headers cover every operation.
-    pub(crate) fn request(&self, route: &str) -> Result<RequestBuilder> {
-        self.headers.apply(self.client.post(route)?)
+        let req = self
+            .base
+            .request(self.base.route())?
+            .multipart(body.into_form()?);
+        Ok(EndpointReply::new(self.base.client().send(req).await?))
     }
 }

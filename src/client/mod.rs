@@ -22,6 +22,7 @@ use url::Url;
 
 pub use self::builder::ClientBuilder;
 pub use self::endpoint::Endpoint;
+pub(crate) use self::endpoint::EndpointBase;
 pub(crate) use self::headers::Headers;
 pub use self::reply::EndpointReply;
 use crate::error::{Error, Result};
@@ -86,15 +87,32 @@ impl Client {
         &self.inner.http
     }
 
-    /// Returns a handle to the service endpoint at `route`.
+    /// Returns a handle to the synchronous endpoint (`@bentoml.api`) at `route`.
     ///
     /// `route` is the endpoint name with or without a leading slash. The returned
     /// [`Endpoint`] carries the route, so calls are made on it rather than passing
-    /// the route to each method: `client.endpoint("summarize").call(&req)`.
+    /// the route to each method: `client.endpoint("summarize").invoke(&req)`. For an
+    /// async task endpoint (`@bentoml.task`), use [`task`] instead.
     ///
     /// Accepts a `&'static str` (borrowed without allocating) or an owned `String`.
+    ///
+    /// [`task`]: Self::task
     pub fn endpoint(&self, route: impl Into<Cow<'static, str>>) -> Endpoint {
         Endpoint::new(self.clone(), route.into())
+    }
+
+    /// Returns a handle to the async task endpoint (`@bentoml.task`) at `route`.
+    ///
+    /// The returned [`TaskEndpoint`] exposes only the task surface — `submit` /
+    /// `submit_bytes` / `submit_multipart`, each returning a [`TaskHandle`] — so the
+    /// synchronous `call` family is not callable on it. For a synchronous endpoint,
+    /// use [`endpoint`] instead.
+    ///
+    /// [`TaskEndpoint`]: crate::task::TaskEndpoint
+    /// [`TaskHandle`]: crate::task::TaskHandle
+    /// [`endpoint`]: Self::endpoint
+    pub fn task(&self, route: impl Into<Cow<'static, str>>) -> crate::task::TaskEndpoint {
+        crate::task::TaskEndpoint::new(self.clone(), route.into())
     }
 
     /// Returns whether the service reports itself ready, via `/readyz`.
