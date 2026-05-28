@@ -50,8 +50,10 @@ impl EndpointReply {
 
     /// Consumes this wrapper, returning the underlying [`reqwest::Response`].
     ///
-    /// An escape hatch for response handling not covered here, such as reading
-    /// headers or streaming the body manually.
+    /// A hidden escape hatch (`#[doc(hidden)]`, not part of the stable API) for
+    /// response handling not covered here, such as reading headers or streaming the
+    /// body manually.
+    #[doc(hidden)]
     pub fn into_inner(self) -> reqwest::Response {
         self.inner
     }

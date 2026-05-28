@@ -45,7 +45,6 @@ pub struct Client {
 struct ClientImpl {
     http: ClientWithMiddleware,
     base_url: Url,
-    token: Option<String>,
 }
 
 impl Client {
@@ -57,6 +56,34 @@ impl Client {
     /// The base URL this client targets.
     pub fn base_url(&self) -> &Url {
         &self.inner.base_url
+    }
+
+    /// The underlying [`reqwest::Client`], for requests this crate doesn't model.
+    ///
+    /// A hidden escape hatch (`#[doc(hidden)]`, not part of the stable API): build any
+    /// request against [`base_url`] and send it with the client's configured TLS,
+    /// connection pool, and bearer token. This is the bare client, so it does *not*
+    /// carry the retry middleware — use [`as_client_with_middleware`] to keep retries.
+    ///
+    /// [`base_url`]: Self::base_url
+    /// [`as_client_with_middleware`]: Self::as_client_with_middleware
+    #[doc(hidden)]
+    pub fn as_client(&self) -> &reqwest::Client {
+        self.inner.http.as_ref()
+    }
+
+    /// The underlying [`reqwest_middleware::ClientWithMiddleware`], for requests this
+    /// crate doesn't model.
+    ///
+    /// A hidden escape hatch (`#[doc(hidden)]`, not part of the stable API) like
+    /// [`as_client`], but with the retry middleware applied, so custom requests get
+    /// the same exponential-backoff retries as the crate's own. The bearer token is
+    /// carried via the client's default headers, like every other request.
+    ///
+    /// [`as_client`]: Self::as_client
+    #[doc(hidden)]
+    pub fn as_client_with_middleware(&self) -> &reqwest_middleware::ClientWithMiddleware {
+        &self.inner.http
     }
 
     /// Returns a handle to the service endpoint at `route`.
@@ -132,37 +159,32 @@ impl Client {
         Ok(url)
     }
 
-    /// Begins a `POST` request to `route`, with the bearer token applied.
+    /// Begins a `POST` request to `route`.
     pub(crate) fn post(&self, route: &str) -> Result<RequestBuilder> {
         Ok(self.post_url(self.route_url(route)?))
     }
 
-    /// Begins a `GET` request to `route`, with the bearer token applied.
+    /// Begins a `GET` request to `route`.
     pub(crate) fn get(&self, route: &str) -> Result<RequestBuilder> {
         Ok(self.get_url(self.route_url(route)?))
     }
 
-    /// Begins a `POST` request to a pre-built URL, with the bearer token applied.
+    /// Begins a `POST` request to a pre-built URL.
+    ///
+    /// The bearer token (if any) is applied via the client's default headers, so
+    /// every request carries it without per-call plumbing.
     pub(crate) fn post_url(&self, url: Url) -> RequestBuilder {
-        self.authed(self.inner.http.post(url))
+        self.inner.http.post(url)
     }
 
-    /// Begins a `GET` request to a pre-built URL, with the bearer token applied.
+    /// Begins a `GET` request to a pre-built URL.
     pub(crate) fn get_url(&self, url: Url) -> RequestBuilder {
-        self.authed(self.inner.http.get(url))
+        self.inner.http.get(url)
     }
 
-    /// Begins a `PUT` request to a pre-built URL, with the bearer token applied.
+    /// Begins a `PUT` request to a pre-built URL.
     pub(crate) fn put_url(&self, url: Url) -> RequestBuilder {
-        self.authed(self.inner.http.put(url))
-    }
-
-    /// Applies the configured bearer token to a request builder, if any.
-    pub(crate) fn authed(&self, req: RequestBuilder) -> RequestBuilder {
-        match &self.inner.token {
-            Some(token) => req.bearer_auth(token),
-            None => req,
-        }
+        self.inner.http.put(url)
     }
 
     /// Sends a request, mapping any non-success status to [`Error::Service`].
@@ -193,8 +215,19 @@ impl Client {
         token: Option<String>,
         timeout: Option<Duration>,
         max_retries: u32,
-        headers: reqwest::header::HeaderMap,
+        mut headers: reqwest::header::HeaderMap,
     ) -> Result<Self> {
+        // The bearer token is a constant credential for the life of the client, so it
+        // lives in the default headers rather than being applied per request. This
+        // also authenticates requests made through the `as_client*` escape hatches.
+        if let Some(token) = token {
+            let mut value: reqwest::header::HeaderValue = format!("Bearer {token}")
+                .parse()
+                .map_err(|e| Error::invalid_request("invalid bearer token", e))?;
+            value.set_sensitive(true);
+            headers.insert(reqwest::header::AUTHORIZATION, value);
+        }
+
         let mut http = reqwest::Client::builder().default_headers(headers);
         if let Some(timeout) = timeout {
             http = http.timeout(timeout);
@@ -217,11 +250,7 @@ impl Client {
         }
 
         Ok(Self {
-            inner: Arc::new(ClientImpl {
-                http,
-                base_url,
-                token,
-            }),
+            inner: Arc::new(ClientImpl { http, base_url }),
         })
     }
 }

@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   closing the gap where only a JSON-bodied request could be streamed.
 - **Breaking:** renamed `TaskHandle::get` to `TaskHandle::json`, matching the `EndpointReply`
   readers.
+- **Breaking:** removed `ClientBuilder::with_authorization`. The bearer token via
+  `with_token` is the scheme BentoML uses; for any other scheme set the header
+  directly with `with_header("authorization", ...)`.
 
 ### Added
 
