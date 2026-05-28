@@ -34,16 +34,17 @@ async fn main() -> Result<()> {
     let task = client.endpoint("generate").submit(&request).await?;
     println!("submitted task {}", task.task_id());
 
-    loop {
-        let status = task.status().await?;
-        println!("status: {status:?}");
-        if status.is_terminal() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_secs(2)).await;
-    }
+    // Poll until the task reaches a terminal state, sleeping 2s between checks.
+    let status = task
+        .wait(
+            Duration::from_secs(300),
+            Duration::from_secs(2),
+            tokio::time::sleep,
+        )
+        .await?;
+    println!("status: {status:?}");
 
-    let result: GenerateResponse = task.get().await?;
+    let result: GenerateResponse = task.json().await?;
     println!("result url: {}", result.url);
 
     Ok(())

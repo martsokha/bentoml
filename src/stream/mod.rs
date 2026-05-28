@@ -3,11 +3,12 @@
 //! BentoML streaming endpoints return the response body as a sequence of chunks.
 //! The transport does not impose SSE or other framing: a `Generator[str]` endpoint
 //! streams raw text, a `Generator[Model]` endpoint streams concatenated JSON values,
-//! and chunk boundaries follow the network, not logical records. The [`stream`] call
-//! returns the raw [`ByteStream`]; [`text`], [`lines`], and [`json`] adapt it for the
-//! common text, newline-delimited, and JSON-object cases.
+//! and chunk boundaries follow the network, not logical records.
+//! [`EndpointReply::stream`] returns the raw [`ByteStream`]; [`text`], [`lines`],
+//! and [`json`] adapt it for the common text, newline-delimited, and JSON-object
+//! cases.
 //!
-//! [`stream`]: crate::Endpoint::stream
+//! [`EndpointReply::stream`]: crate::EndpointReply::stream
 //! [`text`]: ByteStream::text
 //! [`lines`]: ByteStream::lines
 //! [`json`]: ByteStream::json
@@ -22,41 +23,38 @@ use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use futures_core::Stream;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 pub use self::json::JsonStream;
 pub use self::line::LineStream;
 pub use self::text::TextStream;
-use crate::client::Endpoint;
+use crate::EndpointReply;
 use crate::error::Result;
 
-impl Endpoint {
-    /// Invokes the streaming endpoint with the given JSON `payload`, returning a
-    /// [`ByteStream`] over the response body chunks. Requires the `stream` feature.
+impl EndpointReply {
+    /// Streams the response body as a sequence of chunks. Requires the `stream`
+    /// feature.
     ///
     /// Decode the chunks with [`ByteStream::text`], [`ByteStream::lines`], or
-    /// [`ByteStream::json`].
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.route(), request_id = self.request_id()), err))]
-    pub async fn stream<T>(&self, payload: &T) -> Result<ByteStream>
-    where
-        T: Serialize + ?Sized + Sync,
-    {
-        let req = self.request(self.route())?.json(payload);
-        let resp = self.client().send(req).await?;
-        Ok(ByteStream::new(resp.bytes_stream()))
+    /// [`ByteStream::json`]; this lets any request (`call`, `call_bytes`,
+    /// `call_multipart`) stream its response.
+    pub fn stream(self) -> ByteStream {
+        ByteStream::new(self.into_inner().bytes_stream())
     }
 }
 
 /// A [`Stream`] of response body chunks, with errors mapped to [`crate::Error`].
 ///
+/// Obtained from [`EndpointReply::stream`].
+///
 /// [`Stream`]: futures_core::Stream
+/// [`EndpointReply::stream`]: crate::EndpointReply::stream
 pub struct ByteStream {
     inner: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>,
 }
 
 impl ByteStream {
-    pub(super) fn new(inner: impl Stream<Item = reqwest::Result<Bytes>> + Send + 'static) -> Self {
+    pub(crate) fn new(inner: impl Stream<Item = reqwest::Result<Bytes>> + Send + 'static) -> Self {
         Self {
             inner: Box::pin(inner),
         }

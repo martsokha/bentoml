@@ -48,12 +48,8 @@ async fn main() -> Result<()> {
         Part::new(image).file_name("image.jpg").mime("image/jpeg"),
     );
 
-    let result: Classification = client
-        .endpoint("classify")
-        .call_multipart(body)
-        .await?
-        .json()
-        .await?;
+    let response = client.endpoint("classify").call_multipart(body).await?;
+    let result: Classification = response.json().await?;
 
     for label in &result.labels {
         println!("{:20} {:.3}", label.name, label.score);

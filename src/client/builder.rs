@@ -50,7 +50,13 @@ impl ClientBuilder {
         self
     }
 
-    /// Sets the bearer token sent on each request. Unset by default.
+    /// Sets the bearer token sent on each request, as `Authorization: Bearer <token>`.
+    /// Unset by default.
+    ///
+    /// This is the scheme BentoML uses. For a non-bearer scheme, set the header
+    /// directly with [`with_header`] (e.g. `with_header("authorization", "Basic ...")`).
+    ///
+    /// [`with_header`]: Self::with_header
     pub fn with_token(mut self, token: impl Into<String>) -> Self {
         self.token = Some(token.into());
         self
@@ -89,17 +95,6 @@ impl ClientBuilder {
     /// [`with_header`]: Self::with_header
     pub fn with_user_agent(self, value: impl AsRef<str>) -> Self {
         self.with_header("user-agent", value)
-    }
-
-    /// Sets the raw `Authorization` header sent on every request.
-    ///
-    /// Use this for schemes other than bearer, or to supply a pre-formatted value
-    /// (e.g. `"Basic ..."`). For a bearer token, prefer [`with_token`], which formats
-    /// the `Bearer <token>` value for you.
-    ///
-    /// [`with_token`]: Self::with_token
-    pub fn with_authorization(self, value: impl AsRef<str>) -> Self {
-        self.with_header("authorization", value)
     }
 
     /// Builds the [`Client`], consuming the builder.
