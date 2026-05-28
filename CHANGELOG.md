@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-28
+
 ### Changed
 
 - **Breaking:** split the endpoint handle by decorator kind. `Client::endpoint`
@@ -37,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Endpoint::invoke`, a JSON-in/JSON-out shorthand that deserializes the response in
   one step (`invoke(&p)` == `call(&p).await?.json().await?`).
-- `Endpoint::submit_bytes` and `Endpoint::submit_multipart` for raw-binary and
+- `TaskEndpoint::submit_bytes` and `TaskEndpoint::submit_multipart` for raw-binary and
   `multipart/form-data` task inputs, mirroring `call_bytes` / `call_multipart` (a
   `@bentoml.task` accepts the same inputs as a regular endpoint).
 - `TaskHandle::bytes` and `TaskHandle::text` read a completed task's result as raw
@@ -161,7 +163,8 @@ Initial release.
 - `Streaming` trait (feature `stream`): `stream` returns a `ByteStream`.
 - `rustls-tls` (default), `native-tls`, `stream`, and `tracing` feature flags.
 
-[unreleased]: https://github.com/martsokha/bentoml/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/martsokha/bentoml/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/martsokha/bentoml/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/martsokha/bentoml/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/martsokha/bentoml/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/martsokha/bentoml/compare/v0.1.0...v0.2.0
