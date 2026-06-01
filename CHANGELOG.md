@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The per-call header set carried by `Endpoint` / `TaskEndpoint` / `TaskHandle` is now
+  `Arc`-shared with copy-on-write inserts, so cloning any of these handles is a
+  refcount bump rather than a `HeaderMap` copy. Matches the existing `Arc`-backed
+  `Client`. No API change.
+
 ## [0.5.0] - 2026-05-28
 
 ### Changed
