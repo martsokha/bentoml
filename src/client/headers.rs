@@ -5,6 +5,19 @@
 //! [`reqwest::RequestBuilder::header`] defers its error to `send`. This keeps
 //! `with_header` returning `Self` while storing already-typed headers (no
 //! re-validation per request).
+//!
+//! The [`HeaderMap`] is wrapped in an [`Arc`] so cloning a [`Headers`] (and thus the
+//! [`Endpoint`] / [`TaskEndpoint`] / [`TaskHandle`] that carries one) is a refcount
+//! bump. Mutation goes through [`Arc::make_mut`]: chained `with_header` calls own a
+//! unique handle and copy nothing; a clone-then-mutate path would copy once on first
+//! write. This matches how the [`Client`] itself is cheap to clone.
+//!
+//! [`Endpoint`]: crate::Endpoint
+//! [`TaskEndpoint`]: crate::task::TaskEndpoint
+//! [`TaskHandle`]: crate::task::TaskHandle
+//! [`Client`]: crate::Client
+
+use std::sync::Arc;
 
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest_middleware::RequestBuilder;
@@ -12,9 +25,11 @@ use reqwest_middleware::RequestBuilder;
 use crate::error::{Error, Result};
 
 /// Accumulated per-request headers, plus the first parse error if any.
+///
+/// `map` is `Arc`-wrapped so clones are cheap; mutation uses [`Arc::make_mut`].
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Headers {
-    map: HeaderMap,
+    map: Arc<HeaderMap>,
     error: Option<String>,
 }
 
@@ -33,7 +48,7 @@ impl Headers {
         };
         match HeaderValue::from_str(value.as_ref()) {
             Ok(value) => {
-                self.map.insert(name, value);
+                Arc::make_mut(&mut self.map).insert(name, value);
             }
             Err(e) => self.error = Some(format!("{name}: {e}")),
         }
@@ -50,17 +65,20 @@ impl Headers {
         if let Some(error) = &self.error {
             return Err(Error::invalid_message(format!("invalid header {error}")));
         }
-        for (name, value) in &self.map {
+        for (name, value) in self.map.iter() {
             req = req.header(name.clone(), value.clone());
         }
         Ok(req)
     }
 
     /// Consumes the accumulator into a [`HeaderMap`], or returns the recorded error.
+    ///
+    /// If the inner `Arc` is uniquely held this avoids a copy; otherwise the map is
+    /// cloned out of the shared `Arc`.
     pub(crate) fn into_map(self) -> Result<HeaderMap> {
         match self.error {
             Some(error) => Err(Error::invalid_message(format!("invalid header {error}"))),
-            None => Ok(self.map),
+            None => Ok(Arc::try_unwrap(self.map).unwrap_or_else(|arc| (*arc).clone())),
         }
     }
 }
