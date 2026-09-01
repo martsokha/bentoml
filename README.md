@@ -22,8 +22,9 @@ call it over your own `serde` types.
 - **File and streaming I/O**: `multipart/form-data` file inputs, raw-binary root
   inputs, binary responses, and chunked streaming endpoints (feature `stream`).
 - **Resilient transport**: exponential-backoff retries via `reqwest-middleware`,
-  bearer-token auth, an optional per-request timeout, and a cheap-to-clone
-  `Arc`-backed client.
+  scoped to idempotent methods so an inference call or task submission is never
+  replayed, bearer-token auth, an optional per-request timeout, and a
+  cheap-to-clone `Arc`-backed client.
 
 ## Usage
 

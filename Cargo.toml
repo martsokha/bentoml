@@ -38,6 +38,10 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "mul
 reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
 reqwest-retry = { version = "0.9" }
 
+# Middleware plumbing.
+async-trait = { version = "0.1" }
+http = { version = "1.3" }
+
 # Serialization.
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
@@ -47,6 +51,9 @@ jiff = { version = "0.2", features = ["serde"] }
 bytes = { version = "1.10" }
 futures-core = { version = "0.3", optional = true }
 
+# Async runtime. Already unconditional via reqwest -> hyper; used here for timers.
+tokio = { version = "1.52", default-features = false, features = ["time"] }
+
 # Errors and utilities.
 thiserror = { version = "2.0" }
 url = { version = "2.5" }
@@ -55,8 +62,10 @@ url = { version = "2.5" }
 tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]
-tokio = { version = "1.52", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
 tokio-stream = { version = "0.1" }
+wiremock = { version = "0.6" }
+serde_json = { version = "1.0" }
 
 [[example]]
 name = "stream"

@@ -36,11 +36,7 @@ async fn main() -> Result<()> {
 
     // Poll until the task reaches a terminal state, sleeping 2s between checks.
     let status = task
-        .wait(
-            Duration::from_secs(300),
-            Duration::from_secs(2),
-            tokio::time::sleep,
-        )
+        .wait(Duration::from_secs(300), Duration::from_secs(2))
         .await?;
     println!("status: {status:?}");
 

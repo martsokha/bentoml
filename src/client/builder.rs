@@ -81,6 +81,12 @@ impl ClientBuilder {
     /// May be called multiple times; an invalid name or value is reported when
     /// [`build`] is called. Note that `Authorization` is managed by [`with_token`].
     ///
+    /// Headers set here are sent on every request, including across redirects.
+    /// `Authorization` is stripped by reqwest when a redirect crosses origins, but a
+    /// custom credential header (say `X-API-Key` behind a gateway) is not, so it
+    /// would be forwarded to the redirect target. Prefer [`with_token`] for
+    /// credentials, or point the client at a base URL that does not redirect.
+    ///
     /// [`build`]: Self::build
     /// [`with_token`]: Self::with_token
     pub fn with_header(mut self, name: impl AsRef<str>, value: impl AsRef<str>) -> Self {

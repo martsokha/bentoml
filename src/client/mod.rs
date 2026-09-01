@@ -4,11 +4,11 @@ mod builder;
 mod endpoint;
 mod headers;
 mod reply;
+mod retry;
 
 pub mod multipart;
 
 use std::borrow::Cow;
-use std::future::Future;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -25,6 +25,7 @@ pub use self::endpoint::Endpoint;
 pub(crate) use self::endpoint::EndpointBase;
 pub(crate) use self::headers::Headers;
 pub use self::reply::EndpointReply;
+use self::retry::IdempotentOnly;
 use crate::error::{Error, Result};
 
 /// An async client for a single BentoML service.
@@ -34,7 +35,9 @@ use crate::error::{Error, Result};
 /// [`TaskEndpoint`] from [`Client::task`] (async `@bentoml.task`). The client is cheap
 /// to clone: internally it is an [`Arc`] around shared state, so clones share one
 /// connection pool. Requests pass through a [`reqwest-middleware`] stack that applies a
-/// per-request timeout and retries transient failures with exponential backoff.
+/// per-request timeout and retries transient failures with exponential backoff. Retries
+/// are scoped to idempotent methods, so a `POST` that runs inference or submits a task
+/// is attempted once and never replayed.
 ///
 /// [`TaskEndpoint`]: crate::task::TaskEndpoint
 /// [`reqwest-middleware`]: https://docs.rs/reqwest-middleware
@@ -129,38 +132,39 @@ impl Client {
         self.health("livez").await
     }
 
-    /// Polls [`is_ready`] until it returns `true` or `timeout` elapses, awaiting
-    /// `sleep(interval)` between attempts.
+    /// Polls [`is_ready`] at `interval` until it returns `true` or `timeout` elapses.
     ///
-    /// The crate is runtime-agnostic, so the caller supplies the delay: `sleep` is
-    /// invoked with `interval` and the returned future is awaited. With Tokio, pass
-    /// `tokio::time::sleep`.
+    /// The first check happens immediately, so an already-ready service returns
+    /// without sleeping. Transient errors (e.g. connection refused during startup)
+    /// are ignored; only the deadline ends the loop.
+    ///
+    /// Each check is bounded by the time remaining, so a server that accepts the
+    /// connection and then stops responding cannot outlast `timeout`.
     ///
     /// Returns [`Error::Timeout`] if the service does not become ready in time.
     ///
     /// [`is_ready`]: Self::is_ready
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, sleep), err))]
-    pub async fn wait_until_ready<S, F>(
-        &self,
-        timeout: Duration,
-        interval: Duration,
-        mut sleep: S,
-    ) -> Result<()>
-    where
-        S: FnMut(Duration) -> F + Send,
-        F: Future<Output = ()> + Send,
-    {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), err))]
+    pub async fn wait_until_ready(&self, timeout: Duration, interval: Duration) -> Result<()> {
         let deadline = Instant::now() + timeout;
         loop {
-            // Ignore transient errors (e.g. connection refused during startup);
-            // only the deadline ends the loop.
-            if matches!(self.is_ready().await, Ok(true)) {
-                return Ok(());
-            }
-            if Instant::now() >= deadline {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
                 return Err(Error::Timeout { timeout });
             }
-            sleep(interval).await;
+
+            // Bounded by whatever remains, so a hung server cannot overrun the
+            // deadline by however long the transport would otherwise allow.
+            if let Ok(Ok(true)) = tokio::time::timeout(remaining, self.is_ready()).await {
+                return Ok(());
+            }
+
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(Error::Timeout { timeout });
+            }
+            // Never sleep past the deadline.
+            tokio::time::sleep(interval.min(remaining)).await;
         }
     }
 
@@ -254,11 +258,15 @@ impl Client {
         }
         let inner = http.build()?;
 
-        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(max_retries);
-
-        let http = MiddlewareBuilder::new(inner)
-            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-            .build();
+        // The retry middleware clones the request body up front and refuses streaming
+        // bodies, so it is only installed when it can actually retry something.
+        let mut http = MiddlewareBuilder::new(inner);
+        if max_retries > 0 {
+            let policy = ExponentialBackoff::builder().build_with_max_retries(max_retries);
+            let retry = RetryTransientMiddleware::new_with_policy(policy);
+            http = http.with(IdempotentOnly::new(retry));
+        }
+        let http = http.build();
 
         let mut base_url = Url::parse(&base_url)?;
 
