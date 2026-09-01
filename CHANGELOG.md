@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.6.0] - 2026-09-01
 
+### Added
+
+- `TaskEndpoint::handle` rebuilds a `TaskHandle` from a `task_id` recorded earlier, so
+  a task can be tracked from a later process or another machine rather than only
+  through the handle `submit` returned. The rebuilt handle carries the endpoint's route
+  and per-call headers, exactly as a submitted one does.
+
 ### Fixed
 
 - Retries are now scoped to idempotent methods. `reqwest-retry` classifies on the
@@ -25,6 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remaining and clamp the sleep with `interval.min(remaining)`. Previously neither
   bounded the request itself, so a server that accepted the connection and then stopped
   responding overran the timeout by however long the transport allowed.
+
+### Internal
+
+- The release workflow verifies the pushed tag matches the package version before
+  anything is published, publishes to crates.io before creating the GitHub release (so
+  a failed publish leaves no release pointing at a crate that is not there), scopes
+  `contents: write` to the release job alone, and passes the crates.io token through
+  the step environment rather than the command line. The build workflow's path filters
+  now include `tests/**`.
 
 ### Documentation
 

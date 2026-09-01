@@ -13,35 +13,44 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
-  create-release:
-    name: Create Release
+  verify:
+    name: Verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Get the version
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
-        with:
-          name: Release ${{ steps.get_version.outputs.VERSION }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify the tag matches the package version
+        id: version
+        # crates.io publishes whatever `Cargo.toml` says, so a tag that disagrees
+        # with it would release one version under another's name. Fail before
+        # anything is published or announced.
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "bentoml") | .version')"
+          if [ "$tag" != "v$version" ]; then
+            echo "::error::tag $tag does not match package version $version (expected v$version)"
+            exit 1
+          fi
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
 
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
-    needs: create-release
+    needs: verify
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -63,4 +72,29 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-publish-
 
       - name: Publish bentoml
-        run: cargo publish -p bentoml --token ${{ secrets.CARGO_TOKEN }}
+        env:
+          CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }}
+        run: cargo publish -p bentoml --token "$CARGO_TOKEN"
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    # The release is the announcement, so it follows the publish it announces:
+    # a failed `cargo publish` leaves no release pointing at a crate that is not
+    # on crates.io.
+    needs: [verify, publish]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: Release ${{ needs.verify.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}

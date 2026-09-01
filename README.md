@@ -87,6 +87,8 @@ A `Client::task(route)` handle (`@bentoml.task`) covers the async task surface:
 - `submit` / `submit_bytes` / `submit_multipart`: submit a JSON, raw-binary, or
   `multipart/form-data` task input; return a `TaskHandle` for `status`, `wait`,
   `retry`, `cancel`, and a result read as `json::<R>()` / `bytes()` / `text()`.
+- `handle(task_id)`: rebuild a `TaskHandle` from an id recorded earlier, to track a
+  task from a later process rather than only the handle `submit` returned.
 
 `EndpointReply::stream()` yields a `ByteStream` of response chunks; decode it with
 `.text()`, `.lines()`, or `.json::<T>()`.
