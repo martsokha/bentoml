@@ -1,7 +1,6 @@
 //! Scoping retries to the requests that can be replayed safely.
 
-use reqwest::Response as ReqwestResponse;
-use reqwest::{Method, Request};
+use reqwest::{Method, Request, Response as ReqwestResponse};
 use reqwest_middleware::{Middleware, Next, Result};
 use reqwest_retry::RetryTransientMiddleware;
 use reqwest_retry::policies::ExponentialBackoff;
