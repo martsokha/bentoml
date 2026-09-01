@@ -32,7 +32,7 @@ Add the dependency:
 
 ```toml
 [dependencies]
-bentoml = "0.5"
+bentoml = "0.6"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1", features = ["derive"] }
 ```
