@@ -7,8 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Retries are now scoped to idempotent methods. `reqwest-retry` classifies on the
+  response status alone and never sees the request method, so a `POST` that timed out
+  or returned a 5xx was replayed like any other request: an `Endpoint::call` ran (and
+  billed) inference up to four times, and a `TaskEndpoint::submit` left duplicate tasks
+  queued. Task polling is unaffected, since `status` / `get` are `GET`s and `cancel` is
+  a `PUT`.
+- The retry middleware is no longer installed when `max_retries` is `0`. It clones the
+  request body up front and rejects streaming bodies, so at zero retries it cost a
+  capability and bought nothing — which matters for `call_multipart` and raw-binary
+  bodies.
+- `TaskHandle::wait` and `Client::wait_until_ready` now bound each poll by the time
+  remaining and clamp the sleep with `interval.min(remaining)`. Previously neither
+  bounded the request itself, so a server that accepted the connection and then stopped
+  responding overran the timeout by however long the transport allowed.
+
+### Documentation
+
+- `ClientBuilder::with_header` now notes that a credential set through it is forwarded
+  across a cross-origin redirect. `Authorization` (set via `with_token`) is stripped by
+  reqwest in that case, but a custom header such as `X-API-Key` behind a gateway is not.
+
 ### Changed
 
+- **Breaking:** `TaskHandle::wait` and `Client::wait_until_ready` no longer take a
+  `sleep` callback. The runtime-agnosticism it bought was illusory — `reqwest` depends
+  on `hyper`, which depends on `tokio` unconditionally, so no dependent has a
+  tokio-free tree — while it put an `S: FnMut(Duration) -> F` plus `F: Future` generic
+  pair on both signatures. Drop the third argument:
+  `task.wait(timeout, interval, tokio::time::sleep)` becomes
+  `task.wait(timeout, interval)`.
 - The per-call header set carried by `Endpoint` / `TaskEndpoint` / `TaskHandle` is now
   `Arc`-shared with copy-on-write inserts, so cloning any of these handles is a
   refcount bump rather than a `HeaderMap` copy. Matches the existing `Arc`-backed
