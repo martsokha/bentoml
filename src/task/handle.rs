@@ -3,7 +3,6 @@
 //! [`TaskEndpoint::submit`]: crate::task::TaskEndpoint::submit
 
 use std::borrow::Cow;
-use std::future::Future;
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
@@ -80,40 +79,51 @@ impl TaskHandle {
         Ok(info.status)
     }
 
-    /// Polls [`status`] until the task reaches a terminal state (completed, failed,
-    /// or canceled), then returns that status.
+    /// Polls [`status`] at `interval` until the task reaches a terminal state
+    /// (completed, failed, or canceled), then returns that status.
     ///
-    /// `sleep(interval)` is awaited between polls; the crate is runtime-agnostic, so
-    /// the caller supplies the delay (with Tokio, pass `tokio::time::sleep`). Returns
-    /// [`Error::Timeout`] if the task is still running after `timeout`. The returned
-    /// status may be non-`Completed` — inspect it before reading the result.
+    /// The first poll happens immediately, so an already-finished task returns
+    /// without sleeping. The returned status may be non-`Completed` — inspect it
+    /// before reading the result.
+    ///
+    /// Each poll is bounded by the time remaining, so a server that accepts the
+    /// connection and then stops responding cannot outlast `timeout`. Returns
+    /// [`Error::Timeout`] if the task is still running when the deadline passes; the
+    /// task keeps running server-side, and the handle can be waited on again.
     ///
     /// [`status`]: Self::status
     /// [`Error::Timeout`]: crate::Error::Timeout
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(skip(self, sleep), fields(route = %self.route, task_id = %self.task_id, request_id = self.request_id()), err)
+        tracing::instrument(skip(self), fields(route = %self.route, task_id = %self.task_id, request_id = self.request_id()), err)
     )]
-    pub async fn wait<S, F>(
-        &self,
-        timeout: Duration,
-        interval: Duration,
-        mut sleep: S,
-    ) -> Result<TaskStatus>
-    where
-        S: FnMut(Duration) -> F + Send,
-        F: Future<Output = ()> + Send,
-    {
+    pub async fn wait(&self, timeout: Duration, interval: Duration) -> Result<TaskStatus> {
         let deadline = Instant::now() + timeout;
         loop {
-            let status = self.status().await?;
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(Error::Timeout { timeout });
+            }
+
+            // Bounded by whatever remains, so a hung server cannot overrun the
+            // deadline by however long the transport would otherwise allow.
+            let status = match tokio::time::timeout(remaining, self.status()).await {
+                Ok(status) => status?,
+                Err(_) => return Err(Error::Timeout { timeout }),
+            };
+
             if status.is_terminal() {
                 return Ok(status);
             }
-            if Instant::now() >= deadline {
+
+            // Checked after polling, so a task that finishes on the last attempt is
+            // returned rather than reported as a timeout.
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
                 return Err(Error::Timeout { timeout });
             }
-            sleep(interval).await;
+            // Never sleep past the deadline.
+            tokio::time::sleep(interval.min(remaining)).await;
         }
     }
 
