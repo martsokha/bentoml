@@ -1,6 +1,7 @@
 //! Each JSON input method encodes the body the way BentoML keys it.
 
 use bentoml::prelude::*;
+use serde::Serialize;
 use serde_json::{Value, json};
 use wiremock::matchers::{body_bytes, body_json, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -14,7 +15,7 @@ fn client(server: &MockServer) -> Client {
 }
 
 #[tokio::test]
-async fn a_named_input_wraps_the_payload_under_the_field() {
+async fn a_single_parameter_is_keyed_on_its_name() {
     let server = MockServer::start().await;
 
     // def recognize(self, requests: list[NerRequest]) keys its input on `requests`.
@@ -28,17 +29,24 @@ async fn a_named_input_wraps_the_payload_under_the_field() {
         .mount(&server)
         .await;
 
-    let requests = vec![json!({"text": "a"}), json!({"text": "b"})];
+    #[derive(Serialize)]
+    struct Recognize {
+        requests: Vec<Value>,
+    }
+
+    let input = Recognize {
+        requests: vec![json!({"text": "a"}), json!({"text": "b"})],
+    };
     let resp: Value = client(&server)
         .endpoint("recognize")
-        .invoke(Input::named("requests", &requests))
+        .invoke(&input)
         .await
-        .expect("the wrapped body matches the mock");
+        .expect("the keyed body matches the mock");
     assert_eq!(resp, json!([1, 2]));
 }
 
 #[tokio::test]
-async fn a_named_task_input_wraps_the_payload_under_the_field() {
+async fn a_task_input_is_keyed_on_parameter_names() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -54,9 +62,9 @@ async fn a_named_task_input_wraps_the_payload_under_the_field() {
 
     let task = client(&server)
         .task("generate")
-        .submit(Input::named("prompts", &["a", "b"]))
+        .submit(&json!({"prompts": ["a", "b"]}))
         .await
-        .expect("the wrapped body matches the mock");
+        .expect("the keyed body matches the mock");
     assert_eq!(task.task_id(), "t-1");
 }
 
@@ -153,10 +161,6 @@ fn futures_are_send(client: Client) {
     fn send<F: Send>(_: F) {}
     let payload = json!({});
     send(client.endpoint("a").call(&payload));
-    send(
-        client
-            .endpoint("a")
-            .invoke::<Value>(Input::named("x", &payload)),
-    );
+    send(client.endpoint("a").invoke::<Value>(Input::root(&payload)));
     send(client.task("a").submit(Input::root(&payload)));
 }

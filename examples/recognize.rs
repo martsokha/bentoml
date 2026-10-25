@@ -1,8 +1,9 @@
 //! Calls a batch `recognize` endpoint whose handler takes a single list parameter.
 //!
 //! Mirrors a handler like `recognize(self, requests: list[NerRequest])`. BentoML
-//! keys the input on the parameter name, so the batch is sent as
-//! `{"requests": [...]}` with `Input::named`, not as a bare array. Run with:
+//! keys the input on the parameter name, so the batch goes in a struct with a
+//! `requests` field and is sent as `{"requests": [...]}`, not as a bare array. Run
+//! with:
 //!
 //! ```sh
 //! cargo run --example recognize
@@ -15,6 +16,12 @@ use serde::{Deserialize, Serialize};
 struct NerRequest {
     text: String,
     threshold: f32,
+}
+
+/// The handler's parameters: here, just `requests`.
+#[derive(Serialize)]
+struct Recognize<'a> {
+    requests: &'a [NerRequest],
 }
 
 #[derive(Deserialize, Debug)]
@@ -45,10 +52,11 @@ async fn main() -> Result<()> {
         },
     ];
 
-    // `requests` names the handler parameter that receives the batch.
     let responses: Vec<NerResponse> = client
         .endpoint("recognize")
-        .invoke(Input::named("requests", &requests))
+        .invoke(&Recognize {
+            requests: &requests,
+        })
         .await?;
 
     for (request, response) in requests.iter().zip(&responses) {

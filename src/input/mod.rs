@@ -1,12 +1,13 @@
 //! Request bodies: [`Input`] and the [`Multipart`] builder.
 //!
-//! BentoML keys an endpoint's input on the handler's parameter names:
+//! BentoML keys an endpoint's input on the handler's parameter names, so a JSON
+//! input is a struct with one field per parameter — even when there is only one:
 //!
-//! | Handler                             | Input                 |
-//! |-------------------------------------|-----------------------|
+//! | Handler                             | Input                      |
+//! |-------------------------------------|----------------------------|
 //! | `f(self, text: str, top_k: int)`    | `&req` / [`Input::object`] |
-//! | `f(self, requests: list[Req])`      | [`Input::named`]      |
-//! | `f(self, requests: list[Req], /)`   | [`Input::root`]       |
+//! | `f(self, requests: list[Req])`      | `&req` / [`Input::object`] |
+//! | `f(self, requests: list[Req], /)`   | [`Input::root`]            |
 //! | `f(self, data: bytes, /)`           | [`Input::bytes`]      |
 //! | `f(self, image: Image, top_k: int)` | [`Multipart`]         |
 
@@ -15,7 +16,6 @@ mod multipart;
 use bytes::Bytes;
 use reqwest_middleware::RequestBuilder;
 use serde::Serialize;
-use serde::ser::{SerializeMap, Serializer};
 use serde_json::value::RawValue;
 
 pub use self::multipart::{Multipart, Part};
@@ -53,22 +53,12 @@ impl Input {
             } else {
                 Err(Error::invalid_message(
                     "endpoint input must serialize to a JSON object keyed on the \
-                     handler's parameter names; use `Input::named` for a single \
-                     parameter, or `Input::root` for a positional-only one",
+                     handler's parameter names: wrap it in a struct with one field \
+                     per parameter, or use `Input::root` for a positional-only one",
                 ))
             }
         });
         Self { body }
-    }
-
-    /// A single parameter named `field`, sent as `{field: value}`.
-    pub fn named<T>(field: &str, value: &T) -> Self
-    where
-        T: Serialize + ?Sized,
-    {
-        Self {
-            body: encode(&Named { field, value }).map(Body::Json),
-        }
     }
 
     /// A positional-only parameter, sent bare.
@@ -133,24 +123,6 @@ where
         .map_err(|e| Error::invalid_request("failed to serialize the JSON input", e))
 }
 
-/// A value wrapped as `{field: value}`, serialized in place without building an
-/// intermediate map.
-struct Named<'a, T: ?Sized> {
-    field: &'a str,
-    value: &'a T,
-}
-
-impl<T> Serialize for Named<'_, T>
-where
-    T: Serialize + ?Sized,
-{
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut map = serializer.serialize_map(Some(1))?;
-        map.serialize_entry(self.field, self.value)?;
-        map.end()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -189,14 +161,6 @@ mod tests {
             .body
             .expect_err("goes through `object`");
         assert!(matches!(err, Error::InvalidRequest { .. }), "{err:?}");
-    }
-
-    #[test]
-    fn named_wraps_the_value_under_the_field() {
-        assert_eq!(
-            json(Input::named("requests", &[1, 2])),
-            r#"{"requests":[1,2]}"#
-        );
     }
 
     #[test]

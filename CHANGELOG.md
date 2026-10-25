@@ -70,9 +70,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TaskEndpoint::submit` take `impl Into<Input>`; `call_bytes`, `call_multipart`,
   `submit_bytes`, and `submit_multipart` are removed. Migrate:
   - `call(&req)` / `invoke(&req)` / `submit(&req)` are unchanged when `req` mirrors
-    the handler's parameters, as a struct with one field per parameter.
-  - A single parameter's value, e.g. for `recognize(self, requests: list[Req])`:
-    `invoke(Input::named("requests", &requests))`.
+    the handler's parameters, as a struct with one field per parameter. That holds
+    for a single parameter too: `recognize(self, requests: list[Req])` takes a
+    struct with a `requests` field, not the bare `Vec`.
   - A positional-only parameter, `f(self, value: T, /)`: `invoke(Input::root(&value))`.
   - `call_bytes(b)` / `submit_bytes(b)` → `call(Input::bytes(b))` / `submit(Input::bytes(b))`.
   - `call_multipart(form)` / `submit_multipart(form)` → `call(form)` / `submit(form)`.

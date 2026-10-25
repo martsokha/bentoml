@@ -80,7 +80,7 @@ a JSON body on the handler's parameter names, so the shape is not the payload's 
 | Handler                             | Body                      | Input                       |
 |-------------------------------------|---------------------------|-----------------------------|
 | `f(self, text: str, top_k: int)`    | `{"text": …, "top_k": …}` | `&req` (a mirroring struct) |
-| `f(self, requests: list[Req])`      | `{"requests": […]}`       | `Input::named("requests", &v)` |
+| `f(self, requests: list[Req])`      | `{"requests": […]}`       | `&req` (one field)          |
 | `f(self, requests: list[Req], /)`   | `[…]`                     | `Input::root(&v)`           |
 | `f(self, data: bytes, /)`           | raw bytes                 | `Input::bytes(b)`           |
 | `f(self, image: Image, top_k: int)` | `multipart/form-data`     | a `Multipart`               |
@@ -123,7 +123,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes and version history.
 
 ## License
 
-Licensed under the [MIT License](LICENSE).
+Licensed under the [MIT License](https://github.com/martsokha/bentoml/blob/main/LICENSE).
 
 [BentoML]: https://www.bentoml.com
 [bentoml-gh]: https://github.com/bentoml/BentoML

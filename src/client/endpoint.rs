@@ -85,8 +85,8 @@ impl EndpointBase {
 /// [`TaskEndpoint`] from [`Client::task`] instead.
 ///
 /// The [`Input`] follows the handler's signature: a reference to a struct mirroring
-/// its parameters converts directly, and [`Input::named`], [`Input::root`],
-/// [`Input::bytes`], and [`Input::multipart`] cover the other shapes.
+/// its parameters converts directly, and [`Input::root`], [`Input::bytes`], and
+/// [`Input::multipart`] cover the other shapes.
 ///
 /// Per-call headers are attached with [`with_header`]: build a fresh handle per
 /// request when they vary.
@@ -189,11 +189,16 @@ impl Endpoint {
     ///
     /// # #[derive(Serialize)] struct NerRequest { text: String }
     /// # #[derive(Deserialize)] struct NerResponse { entities: Vec<String> }
-    /// # async fn run(client: Client, requests: Vec<NerRequest>) -> Result<()> {
     /// // def recognize(self, requests: list[NerRequest]) -> list[NerResponse]
+    /// #[derive(Serialize)]
+    /// struct Recognize<'a> {
+    ///     requests: &'a [NerRequest],
+    /// }
+    ///
+    /// # async fn run(client: Client, requests: Vec<NerRequest>) -> Result<()> {
     /// let resp: Vec<NerResponse> = client
     ///     .endpoint("recognize")
-    ///     .invoke(Input::named("requests", &requests))
+    ///     .invoke(&Recognize { requests: &requests })
     ///     .await?;
     /// # let _ = resp;
     /// # Ok(())
