@@ -95,6 +95,38 @@ impl TaskEndpoint {
         self.with_header("x-request-id", id)
     }
 
+    /// Returns a [`TaskHandle`] for a task already submitted to this endpoint.
+    ///
+    /// Rebuilds a handle from a `task_id` recorded earlier, so a task can be tracked
+    /// after the handle from [`submit`] is gone — a later process, or another machine.
+    /// The task id is the one [`TaskHandle::task_id`] reports.
+    ///
+    /// The handle carries this endpoint's route and per-call headers, exactly as a
+    /// submitted one does. The id is not validated here: an unknown task surfaces when
+    /// an operation is called on the handle.
+    ///
+    /// ```no_run
+    /// use bentoml::prelude::*;
+    ///
+    /// # async fn run(client: Client, task_id: String) -> Result<()> {
+    /// let task = client.task("generate").handle(task_id);
+    /// let status = task.status().await?;
+    /// # let _ = status;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// [`submit`]: Self::submit
+    /// [`TaskHandle::task_id`]: crate::task::TaskHandle::task_id
+    pub fn handle(&self, task_id: impl Into<String>) -> TaskHandle {
+        TaskHandle::new(
+            self.base.client().clone(),
+            self.base.route_cow(),
+            task_id.into(),
+            self.base.headers().clone(),
+        )
+    }
+
     /// Submits the endpoint as a task with a JSON `payload`, returning a [`TaskHandle`]
     /// for tracking it.
     ///

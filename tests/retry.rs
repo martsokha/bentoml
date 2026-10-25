@@ -131,3 +131,59 @@ async fn polling_is_bounded_by_the_deadline() {
         "polling overran its 300ms deadline by far too much: {elapsed:?}"
     );
 }
+
+#[tokio::test]
+async fn wait_on_a_resumed_handle_is_bounded_by_the_deadline() {
+    let server = MockServer::start().await;
+
+    // A server that accepts the connection then stalls well past the deadline.
+    Mock::given(method("GET"))
+        .and(path("/generate/status"))
+        .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
+        .mount(&server)
+        .await;
+
+    let client = client(&server);
+    let task = client.task("generate").handle("task-1");
+    assert_eq!(task.task_id(), "task-1");
+
+    let started = std::time::Instant::now();
+    let result = task
+        .wait(Duration::from_millis(300), Duration::from_millis(50))
+        .await;
+    let elapsed = started.elapsed();
+
+    assert!(result.is_err(), "a stalled poll must time out");
+    // Without bounding the request itself, this would hang for the full 30s.
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "wait overran its 300ms deadline by far too much: {elapsed:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_resumed_handle_carries_the_endpoint_headers() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/generate/status"))
+        .and(wiremock::matchers::header("x-request-id", "req-42"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "task_id": "task-1", "status": "completed" })),
+        )
+        .mount(&server)
+        .await;
+
+    let client = client(&server);
+    let task = client
+        .task("generate")
+        .with_request_id("req-42")
+        .handle("task-1");
+
+    // The mock only matches when the header survived onto the resumed handle.
+    assert!(
+        task.status().await.is_ok(),
+        "per-call headers must propagate to a resumed handle"
+    );
+}
