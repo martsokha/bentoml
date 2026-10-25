@@ -123,7 +123,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes and version history.
 
 ## License
 
-Licensed under the [MIT License](LICENSE.txt).
+Licensed under the [MIT License](LICENSE).
 
 [BentoML]: https://www.bentoml.com
 [bentoml-gh]: https://github.com/bentoml/BentoML
