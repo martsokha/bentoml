@@ -44,7 +44,7 @@ http = { version = "1.3" }
 
 # Serialization.
 serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0" }
+serde_json = { version = "1.0", features = ["raw_value"] }
 jiff = { version = "0.2", features = ["serde"] }
 
 # Bytes for multipart/raw I/O; futures-core gated behind `stream`.
@@ -65,7 +65,7 @@ tracing = { version = "0.1", optional = true }
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
 tokio-stream = { version = "0.1" }
 wiremock = { version = "0.6" }
-serde_json = { version = "1.0" }
+serde_json = { version = "1.0", features = ["raw_value"] }
 
 [[example]]
 name = "stream"

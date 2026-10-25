@@ -36,8 +36,8 @@ impl EndpointReply {
     /// feature.
     ///
     /// Decode the chunks with [`ByteStream::text`], [`ByteStream::lines`], or
-    /// [`ByteStream::json`]; this lets any request (`call`, `call_bytes`,
-    /// `call_multipart`) stream its response.
+    /// [`ByteStream::json`]; this lets any `call`, whatever its input, stream its
+    /// response.
     pub fn stream(self) -> ByteStream {
         ByteStream::new(self.into_inner().bytes_stream())
     }

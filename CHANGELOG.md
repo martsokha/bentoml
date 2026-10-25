@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** endpoints are called with an `Input`, which encodes the body the way
+  BentoML keys it on the handler signature. `Endpoint::call` / `invoke` and
+  `TaskEndpoint::submit` take `impl Into<Input>`; `call_bytes`, `call_multipart`,
+  `submit_bytes`, and `submit_multipart` are removed. Migrate:
+  - `call(&req)` / `invoke(&req)` / `submit(&req)` are unchanged when `req` mirrors
+    the handler's parameters, as a struct with one field per parameter.
+  - A single parameter's value, e.g. for `recognize(self, requests: list[Req])`:
+    `invoke(Input::named("requests", &requests))`.
+  - A positional-only parameter, `f(self, value: T, /)`: `invoke(Input::root(&value))`.
+  - `call_bytes(b)` / `submit_bytes(b)` → `call(Input::bytes(b))` / `submit(Input::bytes(b))`.
+  - `call_multipart(form)` / `submit_multipart(form)` → `call(form)` / `submit(form)`.
+- **Breaking:** the `multipart` module is now `input`, alongside `Input`:
+  `bentoml::input::{Input, Multipart, Part}`. `Input` is also re-exported at the crate
+  root and from the prelude.
+- `invoke` now accepts any input, so a raw-binary or multipart call deserializes its
+  JSON response in one step.
+
+### Fixed
+
+- A JSON input that does not serialize to an object is rejected with
+  `Error::InvalidRequest` before a request is made. Previously `call(&requests)` with
+  a `Vec` posted a bare array, which BentoML answers with a 400 (`Input should be an
+  object`) for every handler with named parameters — the default.
+
 ## [0.6.0] - 2026-09-01
 
 ### Added
