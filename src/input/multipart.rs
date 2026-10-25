@@ -17,7 +17,7 @@ use crate::error::{Error, Result};
 /// an invalid MIME type, surfaces as an error when the request is made.
 ///
 /// ```no_run
-/// use bentoml::multipart::{Multipart, Part};
+/// use bentoml::input::{Multipart, Part};
 ///
 /// # fn build(image: Vec<u8>) -> Multipart {
 /// Multipart::new()

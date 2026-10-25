@@ -5,14 +5,12 @@
 
 use std::borrow::Cow;
 
-use bytes::Bytes;
 use reqwest_middleware::RequestBuilder;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::client::multipart::Multipart;
 use crate::client::{Client, EndpointReply, Headers};
 use crate::error::Result;
+use crate::input::Input;
 
 /// State and plumbing shared by [`Endpoint`] and [`TaskEndpoint`]: the route, the
 /// client, the per-call headers, and the request builder both kinds route through.
@@ -81,10 +79,14 @@ impl EndpointBase {
 /// its [`Client`].
 ///
 /// Obtain one with [`Client::endpoint`]. The route is named once; calls are made on
-/// the handle rather than passing the route to each method. The body-specific
-/// [`call`] / `call_bytes` / `call_multipart` each return an [`EndpointReply`]; for
-/// the common JSON-in, JSON-out case [`invoke`] deserializes in one step. Async task
-/// queues (`@bentoml.task`) use [`TaskEndpoint`] from [`Client::task`] instead.
+/// the handle rather than passing the route to each method. [`call`] sends an
+/// [`Input`] and returns the raw [`EndpointReply`]; for the common JSON-out case
+/// [`invoke`] deserializes in one step. Async task queues (`@bentoml.task`) use
+/// [`TaskEndpoint`] from [`Client::task`] instead.
+///
+/// The [`Input`] follows the handler's signature: a reference to a struct mirroring
+/// its parameters converts directly, and [`Input::root`], [`Input::bytes`], and
+/// [`Input::multipart`] cover the other shapes.
 ///
 /// Per-call headers are attached with [`with_header`]: build a fresh handle per
 /// request when they vary.
@@ -162,54 +164,52 @@ impl Endpoint {
         self.with_header("x-request-id", id)
     }
 
-    /// Invokes the endpoint with the given JSON `payload`, returning the raw
-    /// [`EndpointReply`] to read as `.json::<R>()`, `.bytes()`, or `.text()`.
+    /// Invokes the endpoint with `input`, returning the raw [`EndpointReply`] to
+    /// read as `.json::<R>()`, `.bytes()`, `.text()`, or (feature `stream`)
+    /// `.stream()`.
     ///
-    /// BentoML endpoints are `POST` by default. For the common JSON-in, JSON-out
-    /// case, [`invoke`] deserializes the response in one step.
+    /// BentoML endpoints are `POST` by default. For the common JSON-out case,
+    /// [`invoke`] deserializes the response in one step.
     ///
     /// [`invoke`]: Self::invoke
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
-    pub async fn call<T>(&self, payload: &T) -> Result<EndpointReply>
-    where
-        T: Serialize + ?Sized,
-    {
-        let req = self.base.request(self.base.route())?.json(payload);
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
+    pub async fn call(&self, input: impl Into<Input>) -> Result<EndpointReply> {
+        let req = input.into().attach(self.base.request(self.base.route())?)?;
         Ok(EndpointReply::new(self.base.client().send(req).await?))
     }
 
-    /// Invokes the endpoint with a JSON `payload` and deserializes the JSON response
-    /// into `R` — the common JSON-in, JSON-out case.
+    /// Invokes the endpoint with `input` and deserializes the JSON response into `R`.
     ///
-    /// Shorthand for `call(payload).await?.json().await`. Use [`call`] when you need
+    /// Shorthand for `call(input).await?.json().await`. Use [`call`] when you need
     /// the response as bytes, text, or a stream.
     ///
+    /// ```no_run
+    /// use bentoml::prelude::*;
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// # #[derive(Serialize)] struct NerRequest { text: String }
+    /// # #[derive(Deserialize)] struct NerResponse { entities: Vec<String> }
+    /// // def recognize(self, requests: list[NerRequest]) -> list[NerResponse]
+    /// #[derive(Serialize)]
+    /// struct Recognize<'a> {
+    ///     requests: &'a [NerRequest],
+    /// }
+    ///
+    /// # async fn run(client: Client, requests: Vec<NerRequest>) -> Result<()> {
+    /// let resp: Vec<NerResponse> = client
+    ///     .endpoint("recognize")
+    ///     .invoke(&Recognize { requests: &requests })
+    ///     .await?;
+    /// # let _ = resp;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// [`call`]: Self::call
-    pub async fn invoke<T, R>(&self, payload: &T) -> Result<R>
+    pub async fn invoke<R>(&self, input: impl Into<Input>) -> Result<R>
     where
-        T: Serialize + ?Sized,
         R: DeserializeOwned,
     {
-        self.call(payload).await?.json().await
-    }
-
-    /// Invokes the endpoint with a raw byte body, for endpoints that take a single
-    /// positional binary ("root") input. Returns the raw [`EndpointReply`].
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
-    pub async fn call_bytes(&self, body: impl Into<Bytes>) -> Result<EndpointReply> {
-        let req = self.base.request(self.base.route())?.body(body.into());
-        Ok(EndpointReply::new(self.base.client().send(req).await?))
-    }
-
-    /// Invokes the endpoint with a `multipart/form-data` body, for endpoints that
-    /// take file or image inputs. Build the body with [`Multipart`]. Returns the raw
-    /// [`EndpointReply`].
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
-    pub async fn call_multipart(&self, body: Multipart) -> Result<EndpointReply> {
-        let req = self
-            .base
-            .request(self.base.route())?
-            .multipart(body.into_form()?);
-        Ok(EndpointReply::new(self.base.client().send(req).await?))
+        self.call(input).await?.json().await
     }
 }

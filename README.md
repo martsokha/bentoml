@@ -14,8 +14,9 @@ call it over your own `serde` types.
 
 ## Features
 
-- **Typed calls**: `endpoint(route).invoke(&payload)` over your own `serde` request
-  and response types, with no codegen or per-service bindings.
+- **Typed calls**: `endpoint(route).invoke(&req)` over your own `serde` request and
+  response types, with no codegen or per-service bindings, and an `Input` per
+  handler signature so the body matches what BentoML validates.
 - **Async task queues**: `client.task(route)` submits `@bentoml.task` jobs, then poll
   status, fetch results, retry, or cancel through a `TaskHandle`. The synchronous and
   task surfaces are distinct handle types, so `call` and `submit` can't be mixed.
@@ -73,20 +74,32 @@ runnable examples.
 The handle's kind mirrors the BentoML decorator, and decides which methods are
 available — `call` is not callable on a task handle, nor `submit` on an api handle.
 
+Every call takes an `Input`, chosen by the handler's Python signature. BentoML keys
+a JSON body on the handler's parameter names, so the shape is not the payload's own:
+
+| Handler                             | Body                      | Input                       |
+|-------------------------------------|---------------------------|-----------------------------|
+| `f(self, text: str, top_k: int)`    | `{"text": …, "top_k": …}` | `&req` (a mirroring struct) |
+| `f(self, requests: list[Req])`      | `{"requests": […]}`       | `&req` (one field)          |
+| `f(self, requests: list[Req], /)`   | `[…]`                     | `Input::root(&v)`           |
+| `f(self, data: bytes, /)`           | raw bytes                 | `Input::bytes(b)`           |
+| `f(self, image: Image, top_k: int)` | `multipart/form-data`     | a `Multipart`               |
+
+A `&req` that does not serialize to a JSON object is rejected locally, before a
+request is made, rather than answered by the service with a 400.
+
 A `Client::endpoint(route)` handle (`@bentoml.api`) covers the synchronous surface:
 
-- `call` / `call_bytes` / `call_multipart`: send a JSON, raw-binary, or
-  `multipart/form-data` body (built with `multipart::Multipart`), returning an
-  `EndpointReply` you read as `.json::<R>()`, `.bytes()`, `.text()`, or (feature
-  `stream`) `.stream()` — so input and output encodings are chosen independently.
-- `invoke`: the JSON-in, JSON-out shorthand — `invoke(&p)` deserializes the response
-  for you, equivalent to `call(&p).await?.json().await?`.
+- `call(input)`: returns an `EndpointReply` you read as `.json::<R>()`, `.bytes()`,
+  `.text()`, or (feature `stream`) `.stream()` — so input and output encodings are
+  chosen independently.
+- `invoke(input)`: the JSON-out shorthand, equivalent to
+  `call(input).await?.json().await?`.
 
 A `Client::task(route)` handle (`@bentoml.task`) covers the async task surface:
 
-- `submit` / `submit_bytes` / `submit_multipart`: submit a JSON, raw-binary, or
-  `multipart/form-data` task input; return a `TaskHandle` for `status`, `wait`,
-  `retry`, `cancel`, and a result read as `json::<R>()` / `bytes()` / `text()`.
+- `submit(input)`: returns a `TaskHandle` for `status`, `wait`, `retry`, `cancel`,
+  and a result read as `json::<R>()` / `bytes()` / `text()`.
 - `handle(task_id)`: rebuild a `TaskHandle` from an id recorded earlier, to track a
   task from a later process rather than only the handle `submit` returned.
 
@@ -110,7 +123,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes and version history.
 
 ## License
 
-Licensed under the [MIT License](LICENSE.txt).
+Licensed under the [MIT License](https://github.com/martsokha/bentoml/blob/main/LICENSE).
 
 [BentoML]: https://www.bentoml.com
 [bentoml-gh]: https://github.com/bentoml/BentoML

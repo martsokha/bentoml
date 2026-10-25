@@ -1,6 +1,7 @@
 //! Submits a long-running task and polls it to completion.
 //!
-//! Run with:
+//! Mirrors a `@bentoml.task` handler like `generate(self, prompt: str) -> Image`,
+//! submitted with a struct holding one field per parameter. Run with:
 //!
 //! ```sh
 //! cargo run --example task

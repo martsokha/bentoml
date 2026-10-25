@@ -1,6 +1,7 @@
 //! Consumes a streaming endpoint chunk by chunk.
 //!
-//! Run with:
+//! Mirrors a generator handler like `chat(self, prompt: str) -> Generator[str]`,
+//! called with a struct holding one field per parameter. Run with:
 //!
 //! ```sh
 //! cargo run --example stream --features stream

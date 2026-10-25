@@ -2,24 +2,22 @@
 
 use std::borrow::Cow;
 
-use bytes::Bytes;
 use reqwest_middleware::RequestBuilder;
-use serde::Serialize;
 
 use super::handle::TaskHandle;
 use super::join;
 use super::model::TaskInfo;
-use crate::client::multipart::Multipart;
 use crate::client::{Client, EndpointBase};
 use crate::error::Result;
+use crate::input::Input;
 
 /// A handle to an async task endpoint (`@bentoml.task`), pairing a route with its
 /// [`Client`].
 ///
 /// Obtain one with [`Client::task`]. Submitting returns a [`TaskHandle`] that carries
-/// the id-based operations (`status`, `wait`, result readers, `retry`, `cancel`). The
-/// body-specific [`submit`] / `submit_bytes` / `submit_multipart` mirror the `call`
-/// family on a synchronous [`Endpoint`]; only the task surface is available here.
+/// the id-based operations (`status`, `wait`, result readers, `retry`, `cancel`).
+/// [`submit`] takes the same [`Input`] as `call` on a synchronous [`Endpoint`]; only
+/// the task surface is available here.
 ///
 /// Per-call headers are attached with [`with_header`] and propagate to the
 /// [`TaskHandle`], covering its status/result/retry/cancel requests too.
@@ -127,46 +125,14 @@ impl TaskEndpoint {
         )
     }
 
-    /// Submits the endpoint as a task with a JSON `payload`, returning a [`TaskHandle`]
-    /// for tracking it.
+    /// Submits the endpoint as a task with `input`, returning a [`TaskHandle`] for
+    /// tracking it.
     ///
     /// The handle carries the id-based operations (`status`, `wait`, result readers,
-    /// `retry`, `cancel`). Use [`submit_bytes`] or [`submit_multipart`] for non-JSON
-    /// task inputs.
-    ///
-    /// [`submit_bytes`]: Self::submit_bytes
-    /// [`submit_multipart`]: Self::submit_multipart
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, payload), fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
-    pub async fn submit<T>(&self, payload: &T) -> Result<TaskHandle>
-    where
-        T: Serialize + ?Sized + Sync,
-    {
-        self.submit_with(self.submit_request()?.json(payload)).await
-    }
-
-    /// Submits the endpoint as a task with a raw byte body, for task endpoints that
-    /// take a single positional binary ("root") input.
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
-    pub async fn submit_bytes(&self, body: impl Into<Bytes>) -> Result<TaskHandle> {
-        self.submit_with(self.submit_request()?.body(body.into()))
-            .await
-    }
-
-    /// Submits the endpoint as a task with a `multipart/form-data` body, for task
-    /// endpoints that take file or image inputs. Build the body with [`Multipart`].
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, body), fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
-    pub async fn submit_multipart(&self, body: Multipart) -> Result<TaskHandle> {
-        self.submit_with(self.submit_request()?.multipart(body.into_form()?))
-            .await
-    }
-
-    /// Begins the `POST {route}/submit` request, with bearer token and headers.
-    fn submit_request(&self) -> Result<RequestBuilder> {
-        self.base.request(&join(self.base.route(), "submit"))
-    }
-
-    /// Sends a prepared submit request and builds the resulting [`TaskHandle`].
-    async fn submit_with(&self, req: RequestBuilder) -> Result<TaskHandle> {
+    /// `retry`, `cancel`).
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(route = %self.base.route(), request_id = self.base.request_id()), err))]
+    pub async fn submit(&self, input: impl Into<Input>) -> Result<TaskHandle> {
+        let req = input.into().attach(self.submit_request()?)?;
         let info: TaskInfo = self.base.client().send(req).await?.json().await?;
         Ok(TaskHandle::new(
             self.base.client().clone(),
@@ -174,5 +140,10 @@ impl TaskEndpoint {
             info.task_id,
             self.base.headers().clone(),
         ))
+    }
+
+    /// Begins the `POST {route}/submit` request, with bearer token and headers.
+    fn submit_request(&self) -> Result<RequestBuilder> {
+        self.base.request(&join(self.base.route(), "submit"))
     }
 }

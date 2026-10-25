@@ -6,8 +6,6 @@ mod headers;
 mod reply;
 mod retry;
 
-pub mod multipart;
-
 use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -108,9 +106,9 @@ impl Client {
 
     /// Returns a handle to the async task endpoint (`@bentoml.task`) at `route`.
     ///
-    /// The returned [`TaskEndpoint`] exposes only the task surface — `submit` /
-    /// `submit_bytes` / `submit_multipart`, each returning a [`TaskHandle`] — so the
-    /// synchronous `call` family is not callable on it. For a synchronous endpoint,
+    /// The returned [`TaskEndpoint`] exposes only the task surface — `submit`,
+    /// returning a [`TaskHandle`] — so the synchronous `call` / `invoke` are not
+    /// callable on it. For a synchronous endpoint,
     /// use [`endpoint`] instead.
     ///
     /// [`TaskEndpoint`]: crate::task::TaskEndpoint

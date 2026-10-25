@@ -14,6 +14,7 @@ compile_error!(
 mod client;
 mod error;
 
+pub mod input;
 pub mod task;
 
 #[cfg(feature = "stream")]
@@ -23,6 +24,5 @@ pub mod stream;
 #[doc(hidden)]
 pub mod prelude;
 
-pub use crate::client::{Client, ClientBuilder, Endpoint, EndpointReply, multipart};
+pub use crate::client::{Client, ClientBuilder, Endpoint, EndpointReply};
 pub use crate::error::{Error, Result};
-pub use crate::task::TaskEndpoint;
