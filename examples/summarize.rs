@@ -1,6 +1,8 @@
 //! Calls a `summarize` endpoint on a locally running BentoML service.
 //!
-//! Run with:
+//! Mirrors a handler like `summarize(self, text: str) -> Summary`: BentoML keys the
+//! input on parameter names, so the request struct has one field per parameter and
+//! is passed as `&request`. Run with:
 //!
 //! ```sh
 //! cargo run --example summarize

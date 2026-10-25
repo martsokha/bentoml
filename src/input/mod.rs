@@ -1,20 +1,14 @@
-//! Request bodies: the [`Input`] an endpoint is called with, and the [`Multipart`]
-//! builder for file inputs.
+//! Request bodies: [`Input`] and the [`Multipart`] builder.
 //!
-//! BentoML derives an endpoint's input model from the handler signature, keyed on
-//! each parameter's name, so the right body follows from the Python signature:
+//! BentoML keys an endpoint's input on the handler's parameter names:
 //!
-//! | Handler                               | Body                        | Input               |
-//! |---------------------------------------|-----------------------------|---------------------|
-//! | `f(self, text: str, top_k: int)`      | `{"text": …, "top_k": …}`   | [`Input::object`]   |
-//! | `f(self, requests: list[Req])`        | `{"requests": […]}`         | [`Input::named`]    |
-//! | `f(self, requests: list[Req], /)`     | `[…]`                       | [`Input::root`]     |
-//! | `f(self, data: bytes, /)`             | raw bytes                   | [`Input::bytes`]    |
-//! | `f(self, image: Image, top_k: int)`   | `multipart/form-data`       | [`Input::multipart`]|
-//!
-//! A reference to any `Serialize` value converts into [`Input::object`], and a
-//! [`Multipart`] into [`Input::multipart`], so `invoke(&req)` and `invoke(form)` need
-//! no wrapping.
+//! | Handler                             | Input                 |
+//! |-------------------------------------|-----------------------|
+//! | `f(self, text: str, top_k: int)`    | `&req` / [`Input::object`] |
+//! | `f(self, requests: list[Req])`      | [`Input::named`]      |
+//! | `f(self, requests: list[Req], /)`   | [`Input::root`]       |
+//! | `f(self, data: bytes, /)`           | [`Input::bytes`]      |
+//! | `f(self, image: Image, top_k: int)` | [`Multipart`]         |
 
 mod multipart;
 
@@ -27,14 +21,10 @@ use serde_json::value::RawValue;
 pub use self::multipart::{Multipart, Part};
 use crate::error::{Error, Result};
 
-/// The body an endpoint is called with: one of the encodings BentoML accepts.
+/// The body an endpoint is called with; see the [module docs](self).
 ///
-/// Built with the constructor matching the handler's signature (see the [module
-/// docs](self)). Construction is infallible; a value that fails to serialize, or an
-/// [`object`] input that is not a JSON object, surfaces as
-/// [`Error::InvalidRequest`] when the request is made — before anything is sent.
-///
-/// [`object`]: Input::object
+/// Construction is infallible: encoding errors surface as [`Error::InvalidRequest`]
+/// when the request is made, before anything is sent.
 #[derive(Debug)]
 #[must_use]
 pub struct Input {
@@ -50,16 +40,8 @@ enum Body {
 }
 
 impl Input {
-    /// The endpoint's whole input model: `input` must serialize to a JSON object with
-    /// one key per handler parameter — typically a struct whose fields mirror the
-    /// Python signature, for `f(self, text: str, top_k: int)`.
-    ///
-    /// Anything that is not an object is rejected rather than sent, since BentoML
-    /// would answer it with a 400. Use [`named`] to pass a single parameter's value,
-    /// or [`root`] for a positional-only parameter.
-    ///
-    /// [`named`]: Self::named
-    /// [`root`]: Self::root
+    /// The whole input model: a JSON object with one key per handler parameter,
+    /// typically a struct mirroring the signature. Anything else is rejected.
     pub fn object<T>(input: &T) -> Self
     where
         T: Serialize + ?Sized,
@@ -79,12 +61,7 @@ impl Input {
         Self { body }
     }
 
-    /// A single handler parameter: `value` sent as `{field: value}`, for
-    /// `f(self, requests: list[Req])` with `field` = `"requests"`.
-    ///
-    /// The field is named at the call site rather than inferred: BentoML places no
-    /// constraint on parameter names, and the name sits one line from the Python
-    /// signature it mirrors.
+    /// A single parameter named `field`, sent as `{field: value}`.
     pub fn named<T>(field: &str, value: &T) -> Self
     where
         T: Serialize + ?Sized,
@@ -94,8 +71,7 @@ impl Input {
         }
     }
 
-    /// A positional-only ("root") parameter: `value` sent bare, for
-    /// `f(self, requests: list[Req], /)`.
+    /// A positional-only parameter, sent bare.
     pub fn root<T>(value: &T) -> Self
     where
         T: Serialize + ?Sized,
@@ -105,15 +81,14 @@ impl Input {
         }
     }
 
-    /// A positional-only binary parameter: `body` sent as raw bytes, for
-    /// `f(self, data: bytes, /)`.
+    /// A positional-only binary parameter, sent as raw bytes.
     pub fn bytes(body: impl Into<Bytes>) -> Self {
         Self {
             body: Ok(Body::Bytes(body.into())),
         }
     }
 
-    /// A `multipart/form-data` body, for handlers that take file or image inputs.
+    /// A `multipart/form-data` body, for file or image parameters.
     pub fn multipart(body: Multipart) -> Self {
         Self {
             body: Ok(Body::Multipart(body)),

@@ -26,5 +26,3 @@ pub mod prelude;
 
 pub use crate::client::{Client, ClientBuilder, Endpoint, EndpointReply};
 pub use crate::error::{Error, Result};
-pub use crate::input::Input;
-pub use crate::task::TaskEndpoint;
