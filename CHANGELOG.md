@@ -18,10 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A JSON input that does not serialize to an object is rejected with
-  `Error::InvalidRequest` before a request is made. Previously `call(&requests)` with
-  a `Vec` posted a bare array, which BentoML answers with a 400 (`Input should be an
-  object`) for every handler with named parameters — the default.
+- A whole-model input (`&req` or `Input::object`) that does not serialize to a JSON
+  object is rejected with `Error::InvalidRequest` before a request is made.
+  Previously `call(&requests)` with a `Vec` posted a bare array, which BentoML answers
+  with a 400 (`Input should be an object`) for every handler with named parameters —
+  the default. A bare value for a positional-only handler goes through `Input::root`.
 - Retries are now scoped to idempotent methods. `reqwest-retry` classifies on the
   response status alone and never sees the request method, so a `POST` that timed out
   or returned a 5xx was replayed like any other request: an `Endpoint::call` ran (and
